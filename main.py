@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 from database import (
-    get_connection_local, get_connection_render, 
+    get_connection, get_connection_info,
     listar_estudiantes, insertar_estudiante, actualizar_estudiante, eliminar_estudiante,
     insertar_formacion, listar_formaciones, eliminar_formacion,
     inscribir_estudiante_taller, obtener_profesores, eliminar_profesor,
@@ -22,7 +22,8 @@ from database import (
     guardar_config_correo, obtener_config_correo,
     crear_usuario_prueba, crear_tablas_sistema, ejecutar_query, insertar_profesor,
     limpiar_columnas_profesores, limpiar_columnas_estudiantes, asegurar_estructura_persona,
-    get_metricas_dashboard
+    get_metricas_dashboard,
+    sincronizar_base_de_datos, generar_backup_sql, migrar_datos_a_nube, verificar_entorno_local
 )
 
 # --- FUNCIONES CALLBACK PARA BOTONES DE ACCIÓN ---
@@ -145,8 +146,8 @@ if 'id_persona_est' not in st.session_state:
     st.session_state.apellido_est = ""
 
 # Motores de base de datos
-engine_l = get_connection_local()
-engine_r = get_connection_render()
+engine_l = get_connection()
+engine_r = get_connection()
 
 # =================================================================
 # 2.5. SISTEMA DE ROLES Y PERFILES (RBAC)
@@ -1095,15 +1096,15 @@ elif modulo == "Gestión de Formación Complementaria":
                             engine=engine_l
                         )
                         st.success("✅ Formación eliminada exitosamente")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Error al eliminar: {mensaje}")
-                    
-                    # Limpiar estado
-                    for key in ['accion_pendiente', 'formacion_id_seleccionada', 'nombre_formacion_eliminar']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error al eliminar: {mensaje}")
+                        
+                        # Limpiar estado
+                        for key in ['accion_pendiente', 'formacion_id_seleccionada', 'nombre_formacion_eliminar']:
+                            if key in st.session_state:
+                                del st.session_state[key]
+                        st.rerun()
             
             with col_cancel:
                 if st.button("❌ Cancelar", key="cancel_eliminar_formacion"):
@@ -1713,6 +1714,63 @@ elif modulo == "Configuración":
                         st.error("❌ Error al guardar la configuración")
                 else:
                     st.error("⚠️ Complete los campos obligatorios: Servidor, Puerto y Usuario")
+        
+        # Sección de sincronización (solo en entorno local)
+        st.divider()
+        st.subheader("🔄 Sincronización de Datos")
+        
+        # Verificar si estamos en entorno local
+        if verificar_entorno_local():
+            st.write("📍 Entorno detectado: **Local**")
+            st.info("💡 Esta función permite sincronizar la base de datos local con la nube (Render).")
+            
+            # Mostrar información de conexión actual
+            conn_info = get_connection_info()
+            st.write(f"🔗 Conexión actual: {conn_info['host']}:{conn_info['port']}/{conn_info['database']}")
+            
+            # Botón de sincronización
+            if st.button("🚀 Sincronizar Base de Datos Local con la Nube", type="primary", use_container_width=True):
+                with st.spinner("🔄 Sincronizando datos con la nube..."):
+                    try:
+                        exito, mensaje = migrar_datos_a_nube()
+                        
+                        if exito:
+                            st.success("✅ Datos sincronizados exitosamente")
+                            st.info(mensaje)
+                        else:
+                            st.error("❌ Error en la sincronización")
+                            st.error(mensaje)
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error de conexión: {str(e)}")
+                        st.warning("💡 Verifique su conexión a internet y la configuración de RENDER_DATABASE_URL")
+            
+            # Información adicional
+            with st.expander("📋 Información de Configuración"):
+                st.write("""
+                **Para usar la sincronización:**
+                
+                1. Configure la variable de entorno `RENDER_DATABASE_URL` con la URL de su base de datos en Render
+                2. Asegúrese de tener conexión a internet
+                3. Presione el botón de sincronización
+                
+                **Formato de RENDER_DATABASE_URL:**
+                ```
+                RENDER_DATABASE_URL=postgresql://usuario:password@host:puerto/database?sslmode=require
+                ```
+                
+                **Tablas que se sincronizarán:**
+                - persona (estudiantes)
+                - profesor (profesores)
+                - formacion_complementaria (formaciones)
+                - inscripcion_taller (inscripciones)
+                - auditoria (registros)
+                - config_correo (configuración)
+                """)
+        else:
+            st.write("📍 Entorno detectado: **Nube (Render)**")
+            st.info("ℹ️ La sincronización solo está disponible en entorno local.")
+            st.warning("⚠️ Esta función no se puede ejecutar en la nube por seguridad.")
     
     else:
         st.header("⚙️ Configuración")

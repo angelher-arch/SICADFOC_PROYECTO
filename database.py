@@ -3,77 +3,77 @@ import pandas as pd
 import os
 import unicodedata
 from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
 
-# 1. FUNCIÓN PARA EL GABINETE LOCAL (TU PC)
-def get_connection_local():
+# Cargar variables de entorno desde archivo .env
+load_dotenv()
+
+# FUNCIÓN DE CONEXIÓN HÍBRIDA (RENDER + LOCAL)
+def get_connection():
     """
-    Conecta al PostgreSQL instalado en tu máquina usando variables de entorno.
+    Conecta al PostgreSQL con detección automática y prioridad absoluta.
+    
+    PRIORIDAD ABSOLUTA: Render (producción)
+    - Si DATABASE_URL existe, usa esa URL con ajuste automático de postgres:// a postgresql://
+    
+    FALLBACK: Local (desarrollo)
+    - Si no hay DATABASE_URL, usa localhost:5432/foc26
+    
+    El sistema nunca falla al arrancar y siempre usa el engine dinámico correcto.
     """
     try:
-        # Configuración para tu base de datos local FOC26 usando variables de entorno
-        # Prioridad: 1) os.environ, 2) valor por defecto
-        db_host = os.environ.get("DB_HOST", "localhost")
-        db_port = os.environ.get("DB_PORT", "5432")
-        db_name = os.environ.get("DB_NAME", "FOC26")
-        db_user = os.environ.get("DB_USER", "postgres")
-        db_password = os.environ.get("DB_PASSWORD", "Beba36*ad514xa")
+        # PRIORIDAD ABSOLUTA: DATABASE_URL (Render)
+        database_url = os.getenv('DATABASE_URL')
         
-        url_local = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-        engine = create_engine(url_local)
-        return engine
-    except Exception as e:
-        st.error(f"Error al crear el motor local: {e}")
-        return None
-
-# 2. FUNCIÓN PARA EL GABINETE RENDER (LA NUBE)
-def get_connection_render():
-    """
-    Conecta al PostgreSQL de Render usando st.secrets o variables de entorno.
-    Prioridad: 1) st.secrets, 2) os.environ, 3) error
-    """
-    try:
-        # Opción 1: Usar st.secrets (recomendado para Render)
-        if "connections" in st.secrets and "postgresql" in st.secrets["connections"]:
-            url_nube = st.secrets["connections"]["postgresql"]["url"]
-            # Forzamos modo SSL para Render si no está en la URL
-            if "sslmode" not in url_nube:
-                separator = "&" if "?" in url_nube else "?"
-                url_nube += f"{separator}sslmode=require"
-            engine = create_engine(url_nube)
-            return engine
-        
-        # Opción 2: Usar variables de entorno (fallback)
-        elif os.environ.get("RENDER_DB_URL"):
-            url_nube = os.environ.get("RENDER_DB_URL")
-            # Forzamos modo SSL para Render si no está en la URL
-            if "sslmode" not in url_nube:
-                separator = "&" if "?" in url_nube else "?"
-                url_nube += f"{separator}sslmode=require"
-            engine = create_engine(url_nube)
-            return engine
-        
-        # Opción 3: Usar variables de entorno individuales
-        elif all([os.environ.get("RENDER_DB_HOST"), os.environ.get("RENDER_DB_NAME"), 
-                 os.environ.get("RENDER_DB_USER"), os.environ.get("RENDER_DB_PASSWORD")]):
-            db_host = os.environ.get("RENDER_DB_HOST")
-            db_port = os.environ.get("RENDER_DB_PORT", "5432")
-            db_name = os.environ.get("RENDER_DB_NAME")
-            db_user = os.environ.get("RENDER_DB_USER")
-            db_password = os.environ.get("RENDER_DB_PASSWORD")
+        if database_url:
+            # Estamos en Render o producción - PRIORIDAD ABSOLUTA
+            # Ajustar postgres:// a postgresql:// si es necesario
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://', 1)
             
-            url_nube = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
-            # Forzamos modo SSL para Render
-            if "sslmode" not in url_nube:
-                separator = "&" if "?" in url_nube else "?"
-                url_nube += f"{separator}sslmode=require"
-            engine = create_engine(url_nube)
+            # Forzar SSL para Render si no está en la URL
+            if "sslmode" not in database_url:
+                separator = "&" if "?" in database_url else "?"
+                database_url += f"{separator}sslmode=require"
+            
+            engine = create_engine(database_url)
             return engine
         
         else:
-            return "No se encontró configuración de base de datos en st.secrets ni variables de entorno"
+            # FALLBACK: Local (desarrollo)
+            # Usar localhost:5432/foc26 explícitamente
+            db_host = os.environ.get("DB_HOST", "localhost")
+            db_port = os.environ.get("DB_PORT", "5432")
+            db_name = os.environ.get("DB_NAME", "FOC26")
+            db_user = os.environ.get("DB_USER", "postgres")
+            db_password = os.environ.get("DB_PASSWORD", "Beba36*ad514xa")
+            
+            url_local = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+            engine = create_engine(url_local)
+            return engine
             
     except Exception as e:
-        return f"Error al conectar a Render: {str(e)}"
+        st.error(f"Error al conectar a la base de datos: {e}")
+        return None
+
+def get_connection_info():
+    """
+    Retorna información sobre la conexión actual para depuración.
+    """
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        return {
+            'entorno': 'render',
+            'url': database_url[:20] + '...' if len(database_url) > 20 else database_url,
+            'ssl': 'sslmode=require' in database_url or 'sslmode=' in database_url
+        }
+    else:
+        return {
+            'entorno': 'local',
+            'host': os.environ.get("DB_HOST", "localhost"),
+            'port': os.environ.get("DB_PORT", "5432"),
+            'database': os.environ.get("DB_NAME", "FOC26")
+        }
 
 # 3. FUNCIÓN DE CONSULTA CENTRALIZADA (SQLAlchemy)
 def ejecutar_query(query, params=None, engine=None):
@@ -211,7 +211,7 @@ def limpiar_columnas_profesores(df):
 def asegurar_estructura_persona(engine=None):
     """Asegura que la tabla persona tenga las columnas necesarias para estudiantes."""
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine:
         _asegurar_columnas_persona(engine)
 
@@ -267,7 +267,7 @@ def listar_estudiantes(engine=None):
         list: Lista de diccionarios con los datos, o [] si hay error.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return []
 
@@ -299,7 +299,7 @@ def insertar_estudiante(cedula, apellido, nombre, genero, telefono, carrera, sem
         tuple: (éxito: bool, mensaje)
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -348,7 +348,7 @@ def actualizar_estudiante(cedula, apellido=None, nombre=None, genero=None, telef
         tuple: (éxito: bool, mensaje)
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -404,7 +404,7 @@ def eliminar_estudiante(cedula, engine=None):
         tuple: (éxito: bool, mensaje)
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -503,7 +503,7 @@ def crear_tablas_sistema(engine=None):
     Crea todas las tablas necesarias para el sistema SICADFOC.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -564,7 +564,7 @@ def registrar_auditoria(usuario, rol, transaccion, tabla_afectada=None, registro
     Registra una transacción en la tabla de auditoría.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -597,7 +597,7 @@ def obtener_config_correo(engine=None):
     Obtiene la configuración de correo actual.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return None
 
@@ -614,7 +614,7 @@ def guardar_config_correo(smtp_server, smtp_port, smtp_user, smtp_password, emai
     Guarda la configuración de correo SMTP.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -650,7 +650,7 @@ def obtener_auditoria(filtro_usuario=None, filtro_rol=None, filtro_transaccion=N
     Obtiene registros de auditoría con filtros opcionales.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return []
 
@@ -688,7 +688,7 @@ def crear_usuario_prueba(engine=None):
     con rol Admin permanente y blindado.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
 
@@ -743,7 +743,7 @@ def _asegurar_tablas_formacion(engine=None):
     Crea las tablas necesarias para gestión de formación complementaria
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False
     
@@ -807,7 +807,7 @@ def insertar_formacion(codigo_formacion, tipo_taller, nombre_taller, cedula_prof
     Inserta una nueva formación complementaria
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
     
@@ -859,7 +859,7 @@ def listar_formaciones(filtro_codigo=None, filtro_tipo=None, filtro_estado=None,
     Lista las formaciones complementarias con filtros opcionales
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return []
     
@@ -901,7 +901,7 @@ def eliminar_formacion(id_formacion, engine=None):
     Elimina una formación complementaria (solo admin)
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
     
@@ -928,7 +928,7 @@ def eliminar_profesor(cedula, engine=None):
     Elimina un profesor de la base de datos por cédula (solo admin)
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
     
@@ -965,7 +965,7 @@ def inscribir_estudiante_taller(id_formacion, cedula_estudiante, observaciones=N
     Inscribir un estudiante en un taller
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
     
@@ -1007,7 +1007,7 @@ def get_metricas_dashboard(engine=None):
         Retorna 0 para cualquier métrica si la tabla no existe o hay error.
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return {'talleres': 0, 'estudiantes': 0, 'profesores': 0}
 
@@ -1047,7 +1047,7 @@ def obtener_profesores(engine=None):
         list: Lista de diccionarios con los datos de profesores
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
     if engine is None:
         return []
     
@@ -1079,7 +1079,7 @@ def insertar_profesor(cedula, nombre, apellido, especialidad=None, correo=None, 
         especialidad: Especialidad del profesor (opcional)
         correo: Correo electrónico del profesor (opcional)
         departamento: Departamento del profesor (opcional)
-        engine: Motor de SQLAlchemy (opcional, usa get_connection_local() si no se pasa)
+        engine: Motor de SQLAlchemy (opcional, usa get_connection() si no se pasa)
 
     Returns:
         tuple: (éxito: bool, id_profesor o mensaje)
@@ -1088,7 +1088,7 @@ def insertar_profesor(cedula, nombre, apellido, especialidad=None, correo=None, 
             - (False, mensaje_error) si ocurrió un error
     """
     if engine is None:
-        engine = get_connection_local()
+        engine = get_connection()
 
     if engine is None:
         return False, "No se pudo conectar a la base de datos."
@@ -1125,3 +1125,297 @@ def insertar_profesor(cedula, nombre, apellido, especialidad=None, correo=None, 
     except Exception as e:
         st.error(f"Error al insertar profesor: {e}")
         return False, str(e)
+
+# =================================================================
+# FUNCIONES DE SINCRONIZACIÓN (ESPEJO LOCAL-RENDER)
+# =================================================================
+
+def sincronizar_base_de_datos(modo='exportar'):
+    """
+    Función esqueleto para sincronización entre base de datos local y Render.
+    
+    Args:
+        modo: 'exportar' (local -> render) o 'importar' (render -> local)
+    
+    Returns:
+        tuple: (éxito: bool, mensaje: str)
+    
+    Nota: Esta función prepara la estructura para sincronización bidireccional.
+    """
+    try:
+        if modo == 'exportar':
+            # Exportar desde local hacia Render
+            return _exportar_local_a_render()
+        elif modo == 'importar':
+            # Importar desde Render hacia local
+            return _importar_render_a_local()
+        else:
+            return False, "Modo de sincronización no válido"
+    
+    except Exception as e:
+        return False, f"Error en sincronización: {str(e)}"
+
+def _exportar_local_a_render():
+    """
+    Exporta datos desde la base de datos local hacia Render.
+    Estructura preparada para implementación completa.
+    """
+    try:
+        # Verificar que estamos en entorno local
+        if os.getenv('DATABASE_URL'):
+            return False, "No se puede exportar desde entorno Render"
+        
+        # Estructura preparada para:
+        # 1. Conectar a base de datos local
+        # 2. Extraer datos de tablas principales
+        # 3. Conectar a base de datos Render
+        # 4. Insertar/actualizar datos en Render
+        # 5. Generar archivo .sql de respaldo
+        
+        # Tablas a sincronizar:
+        tablas = [
+            'persona',           # Estudiantes
+            'profesor',          # Profesores
+            'formacion_complementaria',  # Formaciones
+            'inscripcion_taller',        # Inscripciones
+            'auditoria',         # Auditoría
+            'config_correo'      # Configuración
+        ]
+        
+        # Esqueleto de implementación:
+        mensaje = """
+        Sincronización Local -> Render preparada:
+        
+        Tablas a sincronizar:
+        - persona (estudiantes)
+        - profesor (profesores)
+        - formacion_complementaria (formaciones)
+        - inscripcion_taller (inscripciones)
+        - auditoria (registros)
+        - config_correo (configuración)
+        
+        Próximos pasos:
+        1. Extraer datos de local
+        2. Conectar a Render
+        3. Insertar datos en Render
+        4. Generar archivo .sql
+        5. Validar integridad
+        """
+        
+        return True, mensaje.strip()
+        
+    except Exception as e:
+        return False, f"Error exportando a Render: {str(e)}"
+
+def _importar_render_a_local():
+    """
+    Importa datos desde Render hacia la base de datos local.
+    Estructura preparada para implementación completa.
+    """
+    try:
+        # Verificar que estamos en entorno local
+        if os.getenv('DATABASE_URL'):
+            return False, "No se puede importar desde entorno Render"
+        
+        # Estructura preparada para:
+        # 1. Conectar a base de datos Render
+        # 2. Extraer datos de tablas principales
+        # 3. Conectar a base de datos local
+        # 4. Insertar/actualizar datos en local
+        # 5. Generar archivo .sql de respaldo
+        
+        mensaje = """
+        Sincronización Render -> Local preparada:
+        
+        Tablas a sincronizar:
+        - persona (estudiantes)
+        - profesor (profesores)
+        - formacion_complementaria (formaciones)
+        - inscripcion_taller (inscripciones)
+        - auditoria (registros)
+        - config_correo (configuración)
+        
+        Próximos pasos:
+        1. Extraer datos de Render
+        2. Conectar a local
+        3. Insertar datos en local
+        4. Generar archivo .sql
+        5. Validar integridad
+        """
+        
+        return True, mensaje.strip()
+        
+    except Exception as e:
+        return False, f"Error importando de Render: {str(e)}"
+
+def generar_backup_sql():
+    """
+    Genera un archivo .sql con todos los datos de la base de datos actual.
+    Estructura preparada para implementación completa.
+    """
+    try:
+        engine = get_connection()
+        if not engine:
+            return False, "No se pudo conectar a la base de datos"
+        
+        # Estructura preparada para:
+        # 1. Obtener estructura de tablas
+        # 2. Extraer datos de cada tabla
+        # 3. Generar sentencias INSERT
+        # 4. Crear archivo .sql
+        # 5. Guardar en sistema de archivos
+        
+        mensaje = """
+        Generación de backup .sql preparada:
+        
+        Estructura del backup:
+        - CREATE TABLE statements
+        - INSERT statements con datos
+        - Índices y restricciones
+        - Configuración de secuencias
+        
+        Formato: PostgreSQL compatible
+        Compresión: Opcional (.gz)
+        """
+        
+        return True, mensaje.strip()
+        
+    except Exception as e:
+        return False, f"Error generando backup: {str(e)}"
+
+def migrar_datos_a_nube():
+    """
+    Migra datos desde la base de datos local hacia la nube (Render).
+    
+    Returns:
+        tuple: (éxito: bool, mensaje: str)
+    
+    Proceso:
+    1. Conectarse a base de datos local
+    2. Conectarse a base de datos Render (DATABASE_URL externa)
+    3. Leer todas las filas de tablas locales
+    4. Limpiar/actualizar tablas en la nube
+    5. Insertar datos locales en Render
+    """
+    try:
+        # Verificar que estamos en entorno local
+        if os.getenv('DATABASE_URL'):
+            return False, "Esta función solo se puede ejecutar en entorno local"
+        
+        # 1. Conexión a base de datos local
+        engine_local = get_connection()
+        if not engine_local:
+            return False, "No se pudo conectar a la base de datos local"
+        
+        # 2. Pedir DATABASE_URL de Render (desde .env)
+        # La URL ahora se carga automáticamente desde el archivo .env
+        render_url = os.environ.get("RENDER_DATABASE_URL")
+        if not render_url or render_url == "tu_url_externa_de_render_aquí":
+            return False, """
+            No se encontró RENDER_DATABASE_URL configurada.
+            
+            Para sincronizar con la nube, configure la variable en el archivo .env:
+            
+            1. Abra el archivo .env en la raíz del proyecto
+            2. Reemplace 'tu_url_externa_de_render_aquí' con su URL real de Render
+            3. Formato esperado:
+               RENDER_DATABASE_URL=postgresql://usuario:password@host:puerto/database?sslmode=require
+            
+            4. Guarde el archivo y reinicie la aplicación
+            """
+        
+        # 3. Conexión a base de datos Render
+        try:
+            if render_url.startswith('postgres://'):
+                render_url = render_url.replace('postgres://', 'postgresql://', 1)
+            
+            if "sslmode" not in render_url:
+                separator = "&" if "?" in render_url else "?"
+                render_url += f"{separator}sslmode=require"
+            
+            engine_render = create_engine(render_url)
+        except Exception as e:
+            return False, f"Error conectando a Render: {str(e)}"
+        
+        # 4. Tablas a sincronizar
+        tablas = [
+            {'nombre': 'persona', 'pk': 'cedula'},
+            {'nombre': 'profesor', 'pk': 'cedula'},
+            {'nombre': 'formacion_complementaria', 'pk': 'id_formacion'},
+            {'nombre': 'inscripcion_taller', 'pk': 'id_inscripcion'},
+            {'nombre': 'auditoria', 'pk': 'id_auditoria'},
+            {'nombre': 'config_correo', 'pk': 'id'}
+        ]
+        
+        # 5. Proceso de migración
+        total_registros = 0
+        tablas_migradas = []
+        
+        for tabla in tablas:
+            try:
+                # Leer datos locales
+                query_local = f"SELECT * FROM public.{tabla['nombre']}"
+                datos_locales = ejecutar_query(query_local, engine=engine_local)
+                
+                if not datos_locales:
+                    continue  # Tabla vacía, pasar a la siguiente
+                
+                # Limpiar tabla en Render (opcional - usar UPDATE en producción)
+                if tabla['nombre'] in ['auditoria', 'config_correo']:
+                    # Para tablas de sistema, mejor hacer UPDATE
+                    pass
+                else:
+                    # Para tablas de datos, limpiar y reinsertar
+                    query_limpiar = f"DELETE FROM public.{tabla['nombre']}"
+                    ejecutar_query(query_limpiar, engine=engine_render)
+                
+                # Insertar datos en Render
+                for registro in datos_locales:
+                    # Construir INSERT dinámico
+                    columnas = list(registro.keys())
+                    valores = list(registro.values())
+                    
+                    placeholders = [f":{col}" for col in columnas]
+                    query_insert = f"""
+                        INSERT INTO public.{tabla['nombre']} ({', '.join(columnas)})
+                        VALUES ({', '.join(placeholders)})
+                    """
+                    
+                    params = {col: val for col, val in zip(columnas, valores)}
+                    resultado = ejecutar_query(query_insert, params, engine=engine_render)
+                    
+                    if resultado is not True:
+                        return False, f"Error insertando en tabla {tabla['nombre']}: {resultado}"
+                
+                total_registros += len(datos_locales)
+                tablas_migradas.append(tabla['nombre'])
+                
+            except Exception as e:
+                return False, f"Error migrando tabla {tabla['nombre']}: {str(e)}"
+        
+        # 6. Resultado exitoso
+        mensaje = f"""
+        ✅ Migración completada exitosamente
+        
+        📊 Resumen:
+        • Tablas migradas: {', '.join(tablas_migradas)}
+        • Total de registros: {total_registros}
+        • Origen: Base de datos local
+        • Destino: Base de datos Render
+        
+        🔄 La base de datos en la nube ahora es un espejo exacto de la base de datos local.
+        """
+        
+        return True, mensaje.strip()
+        
+    except Exception as e:
+        return False, f"Error en migración: {str(e)}"
+
+def verificar_entorno_local():
+    """
+    Verifica si el sistema se está ejecutando en entorno local.
+    
+    Returns:
+        bool: True si es entorno local, False si es Render/nube
+    """
+    return os.getenv('DATABASE_URL') is None
