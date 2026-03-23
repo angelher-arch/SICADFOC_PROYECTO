@@ -556,7 +556,7 @@ def obtener_config_correo(engine=None):
         print(f"Error obteniendo configuración de correo: {e}")
         return None
 
-def guardar_config_correo(servidor, puerto, usuario, contrasena, remitente, engine=None):
+def guardar_config_correo(servidor, puerto, usuario, contrasena, remitente, usar_tls=None, engine=None):
     """Guarda o actualiza la configuración de correo"""
     try:
         if engine is None:
