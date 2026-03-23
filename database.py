@@ -1,7 +1,10 @@
-﻿import os
+import os
 import pandas as pd
 import sqlite3
 import hashlib
+import traceback
+import functools
+import sys
 from datetime import datetime
 from sqlalchemy import create_engine, text
 from urllib.parse import quote_plus
@@ -9,28 +12,371 @@ from dotenv import load_dotenv
 
 load_dotenv(encoding='utf-8')
 
+# =================================================================
+# VARIABLES GLOBALES Y CONFIGURACIÓN
+# =================================================================
+
+# Ruta de base de datos SQLite local
+SQLITE_DB_PATH = 'foc26_limpio.db'
+
+# Variables globales para motores
+engine_local = None
+engine_espejo = None
+
+# =================================================================
+# SISTEMA DE LOGGING Y DECORADOR DE ERRORES
+# =================================================================
+
+def registrar_error_sistema(usuario, modulo, mensaje_error, linea_codigo=None, stack_trace=None, nivel_error="ERROR", engine=None):
+    """Registra un error en la tabla logs_sistema"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Asegurar que la tabla exista
+            crear_tabla_logs_sistema(engine)
+            
+            # Insertar el error
+            conn.execute(text('''
+            INSERT INTO logs_sistema 
+            (usuario, modulo, mensaje_error, linea_codigo, stack_trace, nivel_error)
+            VALUES (:usuario, :modulo, :mensaje_error, :linea_codigo, :stack_trace, :nivel_error)
+            '''), {
+                'usuario': usuario,
+                'modulo': modulo,
+                'mensaje_error': mensaje_error,
+                'linea_codigo': linea_codigo,
+                'stack_trace': stack_trace,
+                'nivel_error': nivel_error
+            })
+            
+            conn.commit()
+            
+            # Obtener ID del error registrado
+            resultado = conn.execute(text('SELECT last_insert_rowid()'))
+            error_id = resultado.fetchone()[0]
+            
+            return error_id
+            
+    except Exception as e:
+        print(f"Error registrando en logs_sistema: {e}")
+        return None
+
+def decorador_logger(func):
+    """Decorador para capturar errores automáticamente en funciones de base de datos"""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            # Capturar información del error
+            stack_trace = traceback.format_exc()
+            tb = traceback.extract_tb(sys.exc_info()[2])
+            linea_codigo = tb[-1].lineno if tb else None
+            
+            # Determinar el módulo
+            modulo = func.__module__ if hasattr(func, '__module__') else 'desconocido'
+            
+            # Determinar el usuario (intentar obtener de session_state si está disponible)
+            usuario = 'sistema'
+            try:
+                import streamlit as st
+                if hasattr(st, 'session_state') and hasattr(st.session_state, 'user_data'):
+                    usuario = st.session_state.user_data.get('login', 'sistema')
+            except:
+                pass
+            
+            # Registrar el error
+            error_id = registrar_error_sistema(
+                usuario=usuario,
+                modulo=modulo,
+                mensaje_error=str(e),
+                linea_codigo=linea_codigo,
+                stack_trace=stack_trace,
+                nivel_error="ERROR"
+            )
+            
+            # Detectar errores críticos y enviar alerta
+            palabras_criticas = ['ConnectionError', 'OperationalError', 'IntegrityError', 'DatabaseError', 'TimeoutError']
+            error_str = str(e).upper()
+            
+            es_critico = any(palabra.upper() in error_str for palabra in palabras_criticas)
+            
+            if es_critico and error_id:
+                try:
+                    enviar_alerta_critica(error_id, usuario, modulo, str(e), linea_codigo, stack_trace)
+                except Exception as alerta_error:
+                    print(f"Error enviando alerta crítica: {alerta_error}")
+            
+            # Generar mensaje amigable para el usuario
+            if error_id:
+                mensaje_usuario = f"Error registrado. ID de incidente: #{error_id}"
+                if es_critico:
+                    mensaje_usuario += " (Se ha enviado alerta crítica)"
+            else:
+                mensaje_usuario = "Error del sistema. Contacte al administrador."
+            
+            # Mostrar error amigable
+            try:
+                import streamlit as st
+                st.error(mensaje_usuario)
+            except:
+                print(mensaje_usuario)
+            
+            # Re-lanzar la excepción para que el flujo continúe
+            raise e
+    
+    return wrapper
+
+def enviar_alerta_critica(error_id, usuario, modulo, mensaje_error, linea_codigo, stack_trace):
+    """Envía correo de alerta crítica al administrador"""
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        # Obtener configuración de correo
+        config = obtener_config_correo()
+        if not config:
+            print("No hay configuración de correo para enviar alerta crítica")
+            return False
+        
+        # Determinar ambiente
+        import os
+        ambiente = "Render (Nube)" if os.getenv('DATABASE_URL') and 'render.com' in os.getenv('DATABASE_URL') else "Local"
+        
+        # Crear conexión SMTP
+        if config['puerto'] == 465:
+            server = smtplib.SMTP_SSL(config['servidor_smtp'], config['puerto'])
+        else:
+            server = smtplib.SMTP(config['servidor_smtp'], config['puerto'])
+            server.starttls()
+        
+        server.login(config['usuario'], config['password_app'])
+        
+        # Crear correo de alerta
+        msg = MIMEMultipart()
+        msg['From'] = 'ab6643881@gmail.com'  # Remitente fijo
+        msg['To'] = 'angelher@gmail.com'     # Destinatario fijo
+        msg['Subject'] = f"⚠️ ALERTA CRÍTICA: Error detectado en SICADFOC [ID: #{error_id}]"
+        
+        # Cuerpo del correo
+        cuerpo = f"""
+Se ha registrado un fallo crítico en el sistema:
+
+🔍 DETALLES DEL INCIDENTE:
+• ID de Incidente: #{error_id}
+• Ambiente: {ambiente}
+• Módulo: {modulo}
+• Usuario: {usuario}
+• Error: {mensaje_error}
+• Línea: {linea_codigo}
+
+📋 INFORMACIÓN ADICIONAL:
+• Fecha/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+• Nivel: CRÍTICO
+• Sistema: SICADFOC
+
+Por favor, ingrese al Panel de Gestión ITIL para más detalles.
+
+---
+Sistema Integral de Control Académico y Docente FOC26
+Centinela de Errores Automático
+        """
+        
+        msg.attach(MIMEText(cuerpo, 'plain'))
+        
+        # Enviar correo
+        server.send_message(msg)
+        server.quit()
+        
+        print(f"✅ Alerta crítica #{error_id} enviada a angelher@gmail.com")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error enviando alerta crítica: {e}")
+        return False
+
+def optimizar_trazabilidad_session_state():
+    """Optimiza trazabilidad asegurando que variables críticas estén en session_state"""
+    try:
+        import streamlit as st
+        
+        # Asegurar que session_state tenga las variables necesarias
+        if not hasattr(st.session_state, 'user_data'):
+            st.session_state.user_data = {'login': 'sistema'}
+        
+        if not hasattr(st.session_state, 'rol'):
+            st.session_state.rol = 'sistema'
+        
+        # Asegurar que SQLITE_DB_PATH esté accesible
+        if not hasattr(st.session_state, 'sqlite_db_path'):
+            st.session_state.sqlite_db_path = SQLITE_DB_PATH
+        
+        # Verificar que las variables no sean None
+        if st.session_state.user_data.get('login') is None:
+            st.session_state.user_data['login'] = 'sistema'
+        
+        if st.session_state.rol is None:
+            st.session_state.rol = 'sistema'
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error optimizando trazabilidad: {e}")
+        return False
+
+def simular_error_critico(engine=None):
+    """Función para simular un error crítico y probar el sistema de alertas"""
+    try:
+        # Registrar el error simulado
+        error_id = registrar_error_sistema(
+            usuario='test_admin',
+            modulo='test_simulacion',
+            mensaje_error='ConnectionError: Simulated critical connection failure for testing',
+            linea_codigo=999,
+            stack_trace='Simulated stack trace for testing purposes',
+            nivel_error='CRITICAL'
+        )
+        
+        if error_id:
+            # Enviar alerta crítica
+            exito_alerta = enviar_alerta_critica(
+                error_id=error_id,
+                usuario='test_admin',
+                modulo='test_simulacion',
+                mensaje_error='ConnectionError: Simulated critical connection failure for testing',
+                linea_codigo=999,
+                stack_trace='Simulated stack trace for testing purposes'
+            )
+            
+            return {
+                'error_id': error_id,
+                'alerta_enviada': exito_alerta,
+                'mensaje': f'Error crítico #{error_id} simulado exitosamente'
+            }
+        else:
+            return {
+                'error_id': None,
+                'alerta_enviada': False,
+                'mensaje': 'Error simulando error crítico'
+            }
+            
+    except Exception as e:
+        return {
+            'error_id': None,
+            'alerta_enviada': False,
+            'mensaje': f'Error en simulación: {str(e)}'
+        }
+
+def obtener_logs_sistema(estado=None, limite=50, engine=None):
+    """Obtiene los logs del sistema con filtros opcionales"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            query = '''
+            SELECT id, fecha_hora, usuario, modulo, mensaje_error, linea_codigo, estado, nivel_error
+            FROM logs_sistema
+            '''
+            
+            params = {}
+            if estado:
+                query += ' WHERE estado = :estado'
+                params['estado'] = estado
+            
+            query += ' ORDER BY fecha_hora DESC LIMIT :limite'
+            params['limite'] = limite
+            
+            resultado = conn.execute(text(query), params)
+            logs = resultado.fetchall()
+            
+            # Convertir a DataFrame para mejor visualización
+            if logs:
+                df = pd.DataFrame(logs, columns=resultado.keys())
+                
+                # Formatear para mejor visualización
+                df['fecha_hora'] = pd.to_datetime(df['fecha_hora']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                df['mensaje_error'] = df['mensaje_error'].str[:100] + '...'  # Truncar mensajes largos
+                
+                return df
+            else:
+                return pd.DataFrame()
+                
+    except Exception as e:
+        print(f"Error obteniendo logs_sistema: {e}")
+        return pd.DataFrame()
+
+def actualizar_estado_log(error_id, nuevo_estado, engine=None):
+    """Actualiza el estado de un log (Pendiente -> Resuelto)"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            conn.execute(text('''
+            UPDATE logs_sistema 
+            SET estado = :estado 
+            WHERE id = :id
+            '''), {'estado': nuevo_estado, 'id': error_id})
+            
+            conn.commit()
+            return True
+            
+    except Exception as e:
+        print(f"Error actualizando estado del log: {e}")
+        return False
+
 # Lógica de conexión dinámica
 def crear_engine_dinamico():
     """Crea el engine de base de datos según el entorno"""
+    global engine_local, engine_espejo
+    
     # Verificar si estamos en Render (nube)
     database_url = os.getenv('DATABASE_URL')
     
     if database_url and 'render.com' in database_url:
         # Ambiente de nube (Render)
         print("Detectado ambiente de nube (Render) - Usando PostgreSQL")
-        return create_engine(database_url)
+        engine_local = create_engine(database_url)
+        
+        # Engine espejo apunta a la misma base de datos en nube
+        engine_espejo = create_engine(database_url)
+        
     else:
         # Ambiente local
-        SQLITE_DB_PATH = 'foc26_limpio.db'
         print(f"Detectado ambiente local - Usando SQLite: {SQLITE_DB_PATH}")
-        return create_engine(f"sqlite:///{SQLITE_DB_PATH}")
+        engine_local = create_engine(f"sqlite:///{SQLITE_DB_PATH}")
+        
+        # Engine espejo para base de datos espejo local
+        espejo_path = 'Foc26_espejo.db'
+        engine_espejo = create_engine(f"sqlite:///{espejo_path}")
+    
+    return engine_local
 
-# Crear engine global
+# Crear engines globales
 engine = crear_engine_dinamico()
 
+def get_engine_local():
+    """Obtiene el engine de base de datos local"""
+    global engine_local
+    if engine_local is None:
+        engine_local = crear_engine_dinamico()
+    return engine_local
+
+def get_engine_espejo():
+    """Obtiene el engine de base de datos espejo"""
+    global engine_espejo
+    if engine_espejo is None:
+        crear_engine_dinamico()
+    return engine_espejo
+
 def get_connection():
+    """Obtiene conexión a base de datos local"""
     try:
-        return engine
+        return get_engine_local()
     except Exception as e:
         print(f"Error conexion: {e}")
         return None
@@ -394,6 +740,7 @@ def obtener_config_correo():
         print(f"Error obteniendo config correo: {e}")
         return {}
 
+@decorador_logger
 def ejecutar_query(query, params=None, engine=None):
     try:
         # Usar el motor proporcionado o el motor global
@@ -416,6 +763,103 @@ def ejecutar_query(query, params=None, engine=None):
     except Exception as e:
         print(f"Error ejecutando query: {e}")
         return None
+
+@decorador_logger
+def insertar_estudiante(cedula, apellido, nombre, genero, telefono, carrera, semestre, engine=None):
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Verificar si ya existe
+            verificar = conn.execute(text('SELECT cedula FROM persona WHERE cedula = :cedula'), {'cedula': cedula})
+            if verificar.fetchone():
+                return False, "Estudiante ya existe"
+            
+            # Insertar
+            conn.execute(text('''
+            INSERT INTO persona (cedula, apellido, nombre, genero, telefono, carrera, semestre)
+            VALUES (:cedula, :apellido, :nombre, :genero, :telefono, :carrera, :semestre)
+            '''), {
+                'cedula': cedula, 'apellido': apellido, 'nombre': nombre,
+                'genero': genero, 'telefono': telefono, 'carrera': carrera, 'semestre': semestre
+            })
+            conn.commit()
+            return True, "Estudiante insertado correctamente"
+    except Exception as e:
+        return False, f"Error insertando estudiante: {str(e)}"
+
+@decorador_logger
+def actualizar_estudiante(cedula, apellido, nombre, genero, telefono, carrera, semestre, engine=None):
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            conn.execute(text('''
+            UPDATE persona 
+            SET apellido = :apellido, nombre = :nombre, genero = :genero, 
+                telefono = :telefono, carrera = :carrera, semestre = :semestre
+            WHERE cedula = :cedula
+            '''), {
+                'cedula': cedula, 'apellido': apellido, 'nombre': nombre,
+                'genero': genero, 'telefono': telefono, 'carrera': carrera, 'semestre': semestre
+            })
+            conn.commit()
+            return True, "Estudiante actualizado correctamente"
+    except Exception as e:
+        return False, f"Error actualizando estudiante: {str(e)}"
+
+@decorador_logger
+def eliminar_estudiante(cedula, engine=None):
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            conn.execute(text('DELETE FROM persona WHERE cedula = :cedula'), {'cedula': cedula})
+            conn.commit()
+            return True, "Estudiante eliminado correctamente"
+    except Exception as e:
+        return False, f"Error eliminando estudiante: {str(e)}"
+
+@decorador_logger
+def insertar_profesor(cedula, nombre, apellido, especialidad, correo, departamento, engine=None):
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Verificar si ya existe
+            verificar = conn.execute(text('SELECT cedula FROM profesor WHERE cedula = :cedula'), {'cedula': cedula})
+            if verificar.fetchone():
+                return False, "Profesor ya existe"
+            
+            # Insertar
+            conn.execute(text('''
+            INSERT INTO profesor (cedula, nombre, apellido, especialidad, correo, departamento)
+            VALUES (:cedula, :nombre, :apellido, :especialidad, :correo, :departamento)
+            '''), {
+                'cedula': cedula, 'nombre': nombre, 'apellido': apellido,
+                'especialidad': especialidad, 'correo': correo, 'departamento': departamento
+            })
+            conn.commit()
+            return True, "Profesor insertado correctamente"
+    except Exception as e:
+        return False, f"Error insertando profesor: {str(e)}"
+
+@decorador_logger
+def eliminar_profesor(cedula, engine=None):
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            conn.execute(text('DELETE FROM profesor WHERE cedula = :cedula'), {'cedula': cedula})
+            conn.commit()
+            return True, "Profesor eliminado correctamente"
+    except Exception as e:
+        return False, f"Error eliminando profesor: {str(e)}"
 
 def limpiar_columnas_profesores():
     try:
@@ -586,6 +1030,59 @@ def guardar_config_correo(servidor, puerto, usuario, contrasena, remitente, usar
             
     except Exception as e:
         print(f"Error guardando configuración de correo: {e}")
+        return False
+
+def crear_tabla_logs_sistema(engine=None):
+    """Crea tabla de logs del sistema si no existe"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Verificar si la tabla ya existe
+            verificar = conn.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='logs_sistema'
+            """))
+            
+            if not verificar.fetchone():
+                # Crear tabla de logs
+                conn.execute(text("""
+                CREATE TABLE logs_sistema (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fecha_hora TEXT DEFAULT CURRENT_TIMESTAMP,
+                    usuario TEXT,
+                    modulo TEXT,
+                    mensaje_error TEXT,
+                    linea_codigo INTEGER,
+                    estado TEXT DEFAULT 'Pendiente',
+                    stack_trace TEXT,
+                    nivel_error TEXT DEFAULT 'ERROR'
+                )
+                """))
+                
+                # Crear índices para mejor rendimiento
+                conn.execute(text("""
+                CREATE INDEX idx_logs_fecha ON logs_sistema(fecha_hora)
+                """))
+                
+                conn.execute(text("""
+                CREATE INDEX idx_logs_estado ON logs_sistema(estado)
+                """))
+                
+                conn.execute(text("""
+                CREATE INDEX idx_logs_usuario ON logs_sistema(usuario)
+                """))
+                
+                conn.commit()
+                print("Tabla logs_sistema creada exitosamente")
+            else:
+                print("Tabla logs_sistema ya existe")
+                
+        return True
+        
+    except Exception as e:
+        print(f"Error creando tabla logs_sistema: {e}")
         return False
 
 def probar_configuracion_correo(engine=None):

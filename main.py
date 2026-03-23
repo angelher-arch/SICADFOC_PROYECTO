@@ -6,6 +6,341 @@ import shutil
 from datetime import datetime
 from sqlalchemy import text
 
+# Importar módulos de base de datos
+import database
+from database import *
+
+# =================================================================
+# 1. SISTEMA DE ESTÉTICA PROFESIONAL (UI/UX)
+# =================================================================
+
+def inject_custom_css():
+    """Inyecta CSS personalizado para diseño moderno y juvenil"""
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Variables de color - Paleta Slate/Midnight */
+    :root {
+        --bg-primary: #0F172A;
+        --bg-secondary: #1E293B;
+        --bg-tertiary: #334155;
+        --text-primary: #F8FAFC;
+        --text-secondary: #CBD5E1;
+        --text-muted: #64748B;
+        --accent-blue: #38BDF8;
+        --accent-blue-dark: #0EA5E9;
+        --accent-gradient: linear-gradient(135deg, #38BDF8 0%, #0EA5E9 100%);
+        --border-subtle: #334155;
+        --border-focus: #38BDF8;
+        --success: #10B981;
+        --warning: #F59E0B;
+        --error: #EF4444;
+    }
+    
+    /* Fuente global */
+    .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    }
+    
+    /* Fondo principal */
+    .stApp > div {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Sidebar moderno */
+    .css-1d391kg {
+        background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%) !important;
+        border-right: 1px solid var(--border-subtle) !important;
+    }
+    
+    .css-1d391kg .css-17eqqhr {
+        background-color: transparent !important;
+    }
+    
+    /* Separación visual en sidebar */
+    .sidebar-separator {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+        margin: 1rem 0;
+    }
+    
+    /* Logo IUJO styling */
+    .logo-container {
+        text-align: center;
+        padding: 1rem 0;
+        border-bottom: 2px solid var(--border-subtle);
+        margin-bottom: 1rem;
+    }
+    
+    /* Botones modernos */
+    .stButton > button {
+        background: var(--accent-gradient) !important;
+        border: none !important;
+        border-radius: 10px !important;
+        color: white !important;
+        font-weight: 600 !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 0.75rem 1.5rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3) !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4) !important;
+        background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%) !important;
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0) scale(0.98) !important;
+    }
+    
+    /* Botones tipo primary */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-blue-dark) 100%) !important;
+        box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4) !important;
+    }
+    
+    /* Botones tipo secondary */
+    .stButton > button[kind="secondary"] {
+        background: var(--bg-tertiary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    .stButton > button[kind="secondary"]:hover {
+        background: var(--accent-gradient) !important;
+        border-color: var(--accent-blue) !important;
+    }
+    
+    /* Inputs de formulario modernos */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > select {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 8px !important;
+        color: var(--text-primary) !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 0.75rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: var(--border-focus) !important;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1) !important;
+        outline: none !important;
+    }
+    
+    .stTextInput > div > div > input::placeholder,
+    .stTextArea > div > div > textarea::placeholder {
+        color: var(--text-muted) !important;
+    }
+    
+    /* Labels de formularios */
+    .stTextInput label,
+    .stTextArea label,
+    .stSelectbox label {
+        color: var(--text-secondary) !important;
+        font-weight: 500 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    
+    /* Radio buttons modernos */
+    .stRadio > div[role="radiogroup"] > label {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1rem !important;
+        margin: 0.25rem 0 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stRadio > div[role="radiogroup"] > label:hover {
+        border-color: var(--accent-blue) !important;
+        background-color: var(--bg-tertiary) !important;
+    }
+    
+    .stRadio > div[role="radiogroup"] > label[data-baseweb="radio-checked"] {
+        background: var(--accent-gradient) !important;
+        border-color: var(--accent-blue) !important;
+        color: white !important;
+    }
+    
+    /* Tabs modernos */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: var(--bg-secondary) !important;
+        border-radius: 10px !important;
+        padding: 0.5rem !important;
+        border: 1px solid var(--border-subtle) !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 500 !important;
+        font-family: 'Inter', sans-serif !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: var(--bg-tertiary) !important;
+    }
+    
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background: var(--accent-gradient) !important;
+        color: white !important;
+    }
+    
+    /* DataFrames modernos */
+    .dataframe {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+    }
+    
+    .dataframe th {
+        background-color: var(--bg-tertiary) !important;
+        color: var(--text-primary) !important;
+        font-weight: 600 !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 1rem !important;
+    }
+    
+    .dataframe td {
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-secondary) !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 0.75rem 1rem !important;
+        border-top: 1px solid var(--border-subtle) !important;
+    }
+    
+    /* Métricas y cards */
+    .stMetric {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 10px !important;
+        padding: 1.5rem !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    .stMetric label {
+        color: var(--text-secondary) !important;
+        font-weight: 500 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    
+    .stMetric div {
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    
+    /* Expander modernos */
+    .streamlit-expanderHeader {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-top: none !important;
+        border-radius: 0 0 8px 8px !important;
+    }
+    
+    /* Success, Warning, Error messages */
+    .stSuccess {
+        background-color: rgba(16, 185, 129, 0.1) !important;
+        border: 1px solid var(--success) !important;
+        border-radius: 8px !important;
+        color: var(--success) !important;
+    }
+    
+    .stWarning {
+        background-color: rgba(245, 158, 11, 0.1) !important;
+        border: 1px solid var(--warning) !important;
+        border-radius: 8px !important;
+        color: var(--warning) !important;
+    }
+    
+    .stError {
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        border: 1px solid var(--error) !important;
+        border-radius: 8px !important;
+        color: var(--error) !important;
+    }
+    
+    .stInfo {
+        background-color: rgba(56, 189, 248, 0.1) !important;
+        border: 1px solid var(--accent-blue) !important;
+        border-radius: 8px !important;
+        color: var(--accent-blue) !important;
+    }
+    
+    /* Headers y títulos */
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--text-primary) !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Texto general */
+    p, span, div {
+        color: var(--text-secondary) !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    
+    /* Iconos en sidebar */
+    .module-icon {
+        margin-right: 0.5rem;
+        font-size: 1.2rem;
+    }
+    
+    /* Scrollbar personalizado */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: var(--bg-primary);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-blue);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+def get_module_icons():
+    """Devuelve iconos modernos para los módulos"""
+    return {
+        "Inicio": "🏠",
+        "Gestión Estudiantil": "📚",
+        "Gestión de Profesores": "👨‍🏫",
+        "Gestión de Formación Complementaria": "🎓",
+        "Configuración": "⚙️",
+        "Reportes": "📊",
+        "Monitor de Sistema": "⚡",
+        "⚙️ Gestión de Ambientes (ITIL)": "🛠️"
+    }
+
+# Inyectar CSS al inicio
+inject_custom_css()
+
 # Configuración de página para despliegue responsive
 st.set_page_config(
     page_title="SICADFOC - Sistema de Control de Formación Complementaria",
@@ -13,6 +348,65 @@ st.set_page_config(
     layout="wide",  # Aprovecha mejor las pantallas de laptops
     initial_sidebar_state="expanded"
 )
+
+# =================================================================
+# 2. VARIABLES GLOBALES Y MOTORES DE BASE DE DATOS
+# =================================================================
+
+# Obtener motores de base de datos
+engine_l = database.get_engine_local()
+engine_r = database.get_engine_espejo()
+
+# Variable global para rol_actual
+rol_actual = None
+
+def actualizar_rol_actual():
+    """Actualiza la variable global rol_actual desde session_state"""
+    global rol_actual
+    rol_actual = st.session_state.get('rol', 'estudiante')
+    return rol_actual
+
+def mostrar_toast(mensaje, tipo="info", duracion=3):
+    """Muestra una notificación toast limpia sin errores púrpura"""
+    # Usar st.toast que es más limpio que las alertas púrpura
+    if tipo == "success":
+        st.toast(f"✅ {mensaje}", icon="✅")
+    elif tipo == "warning":
+        st.toast(f"⚠️ {mensaje}", icon="⚠️")
+    elif tipo == "error":
+        st.toast(f"❌ {mensaje}", icon="❌")
+    else:  # info
+        st.toast(f"ℹ️ {mensaje}", icon="ℹ️")
+
+def mostrar_mensaje_flotante(mensaje, tipo="info", icono="ℹ️"):
+    """Muestra mensaje flotante con estilo moderno"""
+    colores = {
+        "success": "#10B981",
+        "warning": "#F59E0B", 
+        "error": "#EF4444",
+        "info": "#38BDF8"
+    }
+    
+    color = colores.get(tipo, "#38BDF8")
+    
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, {color}22 0%, {color}11 100%);
+        border: 1px solid {color};
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 1rem 0;
+        color: {color};
+        font-weight: 500;
+        box-shadow: 0 4px 15px {color}33;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    ">
+        <span style="font-size: 1.2rem;">{icono}</span>
+        <span>{mensaje}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Diferenciación visual según ambiente
 database_url = os.getenv('DATABASE_URL')
@@ -554,7 +948,7 @@ if 'confirmar' in query_params and 'email' in query_params:
 # 2.5. SISTEMA DE ROLES Y PERFILES (RBAC)
 # =================================================================
 def obtener_rol_usuario():
-    """Obtiene el rol del usuario desde st.session_state.rol"""
+    """Obtiene el rol del usuario desde st.session_state"""
     return st.session_state.get('rol', 'estudiante')
 
 def registrar_auditoria_sistema(usuario, transaccion, tabla_afectada=None, detalles_adicionales=None):
@@ -583,7 +977,8 @@ def registrar_auditoria_sistema(usuario, transaccion, tabla_afectada=None, detal
 
 def es_admin():
     """Verifica si el usuario es administrador"""
-    return obtener_rol_usuario() == 'admin'
+    rol = obtener_rol_usuario()
+    return rol == 'admin' or rol == 'administrador'
 
 def es_super_admin():
     """Verifica si el usuario es Super-Admin (angelher@gmail.com) con privilegios completos"""
@@ -595,16 +990,18 @@ def es_admin_o_super_admin():
 
 def es_profesor():
     """Verifica si el usuario es profesor"""
-    return obtener_rol_usuario() == 'profesor'
+    rol = obtener_rol_usuario()
+    return rol == 'profesor'
 
 def es_estudiante():
     """Verifica si el usuario es estudiante"""
-    return obtener_rol_usuario() == 'estudiante'
+    rol = obtener_rol_usuario()
+    return rol == 'estudiante'
 
 def es_admin_o_profesor():
     """Verifica si el usuario es administrador o profesor"""
     rol = obtener_rol_usuario()
-    return rol in ['admin', 'profesor']
+    return rol in ['admin', 'administrador', 'profesor']
 
 def mostrar_mensaje_restringido():
     """Muestra mensaje de acceso restringido según el rol"""
@@ -617,85 +1014,210 @@ def mostrar_mensaje_restringido():
         st.info("Si necesita acceso, contacte al administrador del sistema.")
 
 # =================================================================
-# 3. INTERFAZ DE AUTENTICACIÓN (LOGIN)
+# 3. INTERFAZ DE AUTENTICACIÓN (LOGIN) - DISEÑO MODERNO
 # =================================================================
 if not st.session_state.autenticado:
-    _, col_login, _ = st.columns([1, 1.2, 1])
-    with col_login:
-        if os.path.exists("iujo-logo.png"):
-            st.image("iujo-logo.png", width=280)
-        st.title("SICADFOC 2026")
-        st.subheader("Control Académico IUJO")
+    # Contenedor principal del login
+    st.markdown("""
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 80vh;">
+        <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); 
+                    padding: 3rem; border-radius: 20px; 
+                    border: 1px solid #334155; 
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+                    width: 100%; max-width: 500px;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🎓</div>
+                <h1 style="color: #F8FAFC; font-weight: 700; margin-bottom: 0.5rem;">
+                    SICADFOC 2026
+                </h1>
+                <p style="color: #CBD5E1; font-size: 1rem; margin-bottom: 0;">
+                    Sistema Integral de Control Académico y Docente
+                </p>
+                <div style="color: #38BDF8; font-size: 0.9rem; font-weight: 500;">
+                    Instituto Universitario Jesús Obrero
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Formulario de login
+    with st.form("login_form", clear_on_submit=False):
+        st.markdown("""
+        <div style="background: #1E293B; padding: 2rem; border-radius: 15px; 
+                    border: 1px solid #334155; margin-top: -2rem;">
+            <h3 style="color: #F8FAFC; text-align: center; margin-bottom: 1.5rem;">
+                🔐 INICIAR SESIÓN
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Campos del formulario
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            u = st.text_input(
+                "📧 Correo Institucional", 
+                placeholder="usuario@iujo.edu.ve",
+                help="Ingrese su correo institucional"
+            )
+        with col2:
+            p = st.text_input(
+                "🔑 Cédula (Contraseña)", 
+                type="password",
+                placeholder="V-XXXXXXX",
+                help="Ingrese su número de cédula"
+            )
+        
+        # Botón de login centrado
+        _, col_center, _ = st.columns([1, 2, 1])
+        with col_center:
+            btn_login = st.form_submit_button(
+                "🚀 INGRESAR AL SISTEMA", 
+                type="primary",
+                use_container_width=True
+            )
 
-        with st.form("login_form"):
-            u = st.text_input("Correo Institucional")
-            p = st.text_input("Cédula (Contraseña)", type="password")
-            btn_login = st.form_submit_button("INGRESAR AL SISTEMA")
+        if btn_login:
+            # Crear tablas del sistema si no existen
+            crear_tablas_sistema(engine_l)
+            
+            # Crear usuario de prueba si no existe
+            crear_usuario_prueba(engine_l)
+            
+            # Verificación en Gabinete Local con Correo/Cédula
+            import hashlib
+            # Hashear la contraseña ingresada
+            hash_password = hashlib.sha256(p.encode()).hexdigest()
+            
+            query_auth = """
+                SELECT * FROM usuario 
+                WHERE (email = :email OR login = :email) AND contrasena = :password AND activo = TRUE
+            """
+            res_auth = ejecutar_query(query_auth, {"email": u, "password": hash_password}, engine=engine_l)
 
-            if btn_login:
-                # Crear tablas del sistema si no existen
-                crear_tablas_sistema(engine_l)
+            if res_auth is not None and len(res_auth) > 0:
+                # Convertir DataFrame a diccionario
+                usuario_data = res_auth.iloc[0].to_dict()
+                st.session_state.autenticado = True
+                st.session_state.user_data = usuario_data
+                st.session_state.rol = usuario_data.get('rol', 'estudiante')
                 
-                # Crear usuario de prueba si no existe
-                crear_usuario_prueba(engine_l)
+                # Registrar auditoría de login
+                registrar_auditoria_sistema(
+                    usuario=usuario_data.get('login', u),
+                    transaccion='LOGIN',
+                    tabla_afectada='usuario'
+                )
                 
-                # Verificación en Gabinete Local con Correo/Cédula
-                import hashlib
-                # Hashear la contraseña ingresada
-                hash_password = hashlib.sha256(p.encode()).hexdigest()
-                
-                query_auth = """
-                    SELECT * FROM usuario 
-                    WHERE (email = :email OR login = :email) AND contrasena = :password AND activo = TRUE
-                """
-                res_auth = ejecutar_query(query_auth, {"email": u, "password": hash_password}, engine=engine_l)
-
-                if res_auth is not None and len(res_auth) > 0:
-                    # Convertir DataFrame a diccionario
-                    usuario_data = res_auth.iloc[0].to_dict()
-                    st.session_state.autenticado = True
-                    st.session_state.user_data = usuario_data
-                    st.session_state.rol = usuario_data.get('rol', 'estudiante')
-                    
-                    # Registrar auditoría de login
-                    registrar_auditoria_sistema(
-                        usuario=usuario_data.get('login', u),
-                        transaccion='LOGIN',
-                        tabla_afectada='usuario'
-                    )
-                    
-                    st.success(f"✅ Bienvenido {usuario_data.get('login', u)}. Rol: {st.session_state.rol.title()}")
-                    st.rerun()
-                else:
-                    st.error("❌ Error de autenticación. Verifique su correo y cédula.")
-                    st.info("💡 Si es su primer acceso, contacte al administrador del sistema.")
+                st.success(f"🎉 ¡Bienvenido {usuario_data.get('login', u)}! Rol: {st.session_state.rol.title()}")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("❌ Error de autenticación. Verifique su correo y cédula.")
+                st.info("💡 Si es su primer acceso, contacte al administrador del sistema.")
+    
     st.stop()
 
 # =================================================================
-# 4. PANEL DE NAVEGACIÓN (SIDEBAR)
+# 4. PANEL DE NAVEGACIÓN (SIDEBAR) - DISEÑO MODERNO
 # =================================================================
 with st.sidebar:
+    # Logo IUJO con contenedor moderno
+    st.markdown("""
+    <div class="logo-container">
+        <img src="https://via.placeholder.com/120x80/0F172A/38BDF8?text=IUJO" 
+             style="border-radius: 8px; margin-bottom: 0.5rem;" 
+             alt="IUJO Logo">
+        <div style="color: #F8FAFC; font-size: 0.8rem; font-weight: 500;">
+            SICADFOC 2026
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     if os.path.exists("iujo-logo.png"):
-        st.image("iujo-logo.png", width=160)
-
+        st.markdown("""
+        <div class="logo-container">
+            <img src="data:image/png;base64,{}" 
+                 style="border-radius: 8px; margin-bottom: 0.5rem;" 
+                 alt="IUJO Logo">
+            <div style="color: #F8FAFC; font-size: 0.8rem; font-weight: 500;">
+                SICADFOC 2026
+            </div>
+        </div>
+        """.format(
+            st.image("iujo-logo.png", width=120, output_format="PNG", use_column_width=False)
+        ), unsafe_allow_html=True)
+    
+    # Separador visual
+    st.markdown('<div class="sidebar-separator"></div>', unsafe_allow_html=True)
+    
     # Mostrar aviso de ambiente
     mostrar_aviso_ambiente(tipo_ambiente)
-    st.divider()
-
-    st.markdown(f"### 👤 {st.session_state.user_data['login']}")
+    
+    # Separador visual
+    st.markdown('<div class="sidebar-separator"></div>', unsafe_allow_html=True)
+    
+    # Información de usuario con diseño moderno
     rol_actual = obtener_rol_usuario()
-    st.caption(f"Nivel: {rol_actual.title() if rol_actual else 'Desconocido'}")
-    st.divider()
-
-    # Menú de navegación principal
-    modulo = st.radio(
-        "Módulos Operativos:",
-        ["Inicio", "Gestión Estudiantil", "Gestión de Profesores", "Gestión de Formación Complementaria", "Configuración", "Reportes", "Monitor de Sistema", "⚙️ Gestión de Ambientes (ITIL)"],
-        index=0
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); 
+                padding: 1rem; border-radius: 10px; margin: 1rem 0; 
+                border: 1px solid #334155;">
+        <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 1.5rem; margin-right: 0.5rem;">👤</span>
+            <div>
+                <div style="color: #F8FAFC; font-weight: 600; font-size: 0.9rem;">
+                    {st.session_state.user_data['login']}
+                </div>
+                <div style="color: #CBD5E1; font-size: 0.8rem;">
+                    Nivel: {rol_actual.title() if rol_actual else 'Desconocido'}
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Separador visual
+    st.markdown('<div class="sidebar-separator"></div>', unsafe_allow_html=True)
+    
+    # Menú de navegación principal con iconos modernos
+    st.markdown("""
+    <div style="color: #CBD5E1; font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem;">
+        📋 MÓDULOS OPERATIVOS
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Obtener iconos
+    icons = get_module_icons()
+    
+    # Crear opciones con iconos
+    opciones_modulos = [
+        f"{icons['Inicio']} Inicio",
+        f"{icons['Gestión Estudiantil']} Gestión Estudiantil", 
+        f"{icons['Gestión de Profesores']} Gestión de Profesores",
+        f"{icons['Gestión de Formación Complementaria']} Gestión de Formación Complementaria",
+        f"{icons['Configuración']} Configuración",
+        f"{icons['Reportes']} Reportes",
+        f"{icons['Monitor de Sistema']} Monitor de Sistema",
+        f"{icons['⚙️ Gestión de Ambientes (ITIL)']} ⚙️ Gestión de Ambientes (ITIL)"
+    ]
+    
+    # Radio buttons personalizados
+    seleccion = st.radio(
+        "",
+        opciones_modulos,
+        index=0,
+        label_visibility="collapsed"
     )
-
-    st.markdown("<br>" * 10, unsafe_allow_html=True)
-    if st.button("🚪 Finalizar Sesión"):
+    
+    # Extraer el nombre del módulo (sin icono)
+    modulo = seleccion.split(" ", 1)[1] if " " in seleccion else seleccion
+    
+    # Separador visual
+    st.markdown('<div class="sidebar-separator"></div>', unsafe_allow_html=True)
+    
+    # Botón de cerrar sesión con estilo moderno
+    if st.button("🚪 Finalizar Sesión", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
@@ -2420,7 +2942,623 @@ elif modulo == "⚙️ Gestión de Ambientes (ITIL)":
         st.header("⚙️ Gestión de Ambientes (ITIL)")
         st.write("Administración de ambientes y protocolos de transición")
         
-        # Protocolo de Transición
+        # Tabs para diferentes secciones
+        tab_protocolos, tab_logs = st.tabs(["📋 Protocolos", "🐞 Log de Errores"])
+        
+        with tab_protocolos:
+            # Protocolo de Transición
+            st.subheader("🔄 Protocolo de Transición de Ambientes")
+            
+            col_info1, col_info2 = st.columns(2)
+            
+            with col_info1:
+                st.write("**📍 Entorno Actual:**")
+                if verificar_entorno_local():
+                    st.success("🏠 Desarrollo Local (SQLite)")
+                else:
+                    st.info("☁️ Producción (Render)")
+            
+            with col_info2:
+                st.write("**🗄️ Base de Datos:**")
+                conn_info = database.get_connection_info()
+                st.code(f"""
+    Host: {conn_info['host']}
+    Database: {conn_info['database']}
+    User: {conn_info['user']}
+                """)
+            
+            st.divider()
+            
+            # Configuración de Correo
+            st.subheader("📧 Configuración de Correo SMTP")
+            
+            # Obtener configuración actual
+            config_actual = database.obtener_config_correo(engine_l)
+            
+            with st.form("form_config_correo"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    smtp_server = st.text_input("Servidor SMTP", value=config_actual.get('servidor_smtp', '') if config_actual else '')
+                    smtp_port = st.number_input("Puerto", value=config_actual.get('puerto', 587) if config_actual else 587, min_value=1, max_value=65535)
+                
+                with col2:
+                    smtp_user = st.text_input("Usuario", value=config_actual.get('usuario', '') if config_actual else '')
+                    smtp_password = st.text_input("Password App", type="password", value=config_actual.get('password_app', '') if config_actual else '')
+                
+                smtp_remitente = st.text_input("Remitente", value=config_actual.get('remitente', '') if config_actual else '')
+                smtp_use_tls = st.checkbox("Usar TLS", value=True)
+                
+                col_guardar, col_probar = st.columns(2)
+                
+                with col_guardar:
+                    btn_guardar_config = st.form_submit_button("💾 Guardar Configuración", type="primary")
+                
+                with col_probar:
+                    btn_probar_config = st.form_submit_button("🧪 Probar Conexión", type="secondary")
+            
+            if btn_guardar_config:
+                if smtp_server and smtp_port and smtp_user:
+                    # Guardar configuración
+                    exito = database.guardar_config_correo(
+                        servidor=smtp_server,
+                        puerto=smtp_port,
+                        usuario=smtp_user,
+                        contrasena=smtp_password,
+                        remitente=smtp_remitente,
+                        usar_tls=smtp_use_tls,
+                        engine=engine_l
+                    )
+                    
+                    if exito:
+                        # Registrar auditoría
+                        registrar_auditoria(
+                            usuario=st.session_state.user_data.get('login'),
+                            rol=obtener_rol_usuario(),
+                            transaccion='UPDATE',
+                            tabla_afectada='config_correo',
+                            detalles=f"servidor:{smtp_server}, puerto:{smtp_port}, usuario:{smtp_user}",
+                            engine=engine_l
+                        )
+                        st.success("✅ Configuración guardada exitosamente")
+                        st.rerun()
+                    else:
+                        st.error("❌ Error al guardar la configuración")
+                else:
+                    st.error("⚠️ Complete los campos obligatorios: Servidor, Puerto y Usuario")
+            
+            if btn_probar_config:
+                if smtp_server and smtp_port and smtp_user:
+                    with st.spinner("Probando conexión SMTP..."):
+                        exito, mensaje = database.probar_configuracion_correo(engine_l)
+                        
+                        if exito:
+                            st.success("✅ Conexión SMTP exitosa")
+                            st.info(mensaje)
+                        else:
+                            st.error("❌ Error en la conexión SMTP")
+                            st.error(mensaje)
+                else:
+                    st.error("⚠️ Complete los campos obligatorios para probar")
+            
+            st.divider()
+            
+            # Prueba de flujo de validación
+            st.subheader("📧 Prueba de Flujo de Validación")
+            
+            email_prueba = st.text_input(
+                "Correo de prueba", 
+                placeholder="angelher@gmail.com",
+                help="Correo al que se enviará el mensaje de prueba"
+            )
+            
+            if st.button("📧 Probar Flujo de Validación", type="primary"):
+                if email_prueba and config_actual:
+                    with st.spinner("Enviando correo de confirmación..."):
+                        try:
+                            # Actualizar remitente a ab6643881@gmail.com
+                            database.guardar_config_correo(
+                                servidor=config_actual['servidor_smtp'], 
+                                puerto=config_actual['puerto'], 
+                                usuario=config_actual['usuario'], 
+                                contrasena=config_actual['password_app'], 
+                                remitente='ab6643881@gmail.com',
+                                usar_tls=None,
+                                engine=engine_l
+                            )
+                            
+                            # Enviar correo de confirmación
+                            exito, mensaje = database.enviar_confirmacion_registro(email_prueba, engine_l)
+                            
+                            if exito:
+                                st.success("✅ Correo de confirmación enviado")
+                                st.info(mensaje)
+                                
+                                # Mostrar enlace generado (para pruebas)
+                                import hashlib
+                                import time
+                                timestamp = str(int(time.time()))
+                                token_data = f"{email_prueba}:{timestamp}"
+                                token = hashlib.sha256(token_data.encode()).hexdigest()[:32]
+                                
+                                st.markdown("**🔗 Enlace de prueba (para desarrollo):**")
+                                st.code(f"https://sicadfoc-proyecto.onrender.com?confirmar={token}&email={email_prueba}")
+                            else:
+                                st.warning("⚠️ No se pudo enviar el correo")
+                                st.error(mensaje)
+                        except Exception as e:
+                            st.error(f"❌ Error en el proceso: {e}")
+                else:
+                    st.warning("⚠️ Ingrese un correo de prueba y asegúrese que la configuración SMTP esté guardada")
+        
+        with tab_logs:
+            st.subheader("🐞 Log de Errores del Sistema")
+            st.write("Visualización y gestión de errores registrados automáticamente")
+            
+            # Filtros
+            col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
+            
+            with col_filtro1:
+                estado_filtro = st.selectbox(
+                    "Filtrar por estado:",
+                    ["Todos", "Pendiente", "Resuelto"],
+                    key="filtro_estado"
+                )
+            
+            with col_filtro2:
+                limite_registros = st.selectbox(
+                    "Límite de registros:",
+                    [10, 25, 50, 100],
+                    index=2,
+                    key="limite_logs"
+                )
+            
+            with col_filtro3:
+                if st.button("🔄 Actualizar Logs", type="secondary"):
+                    st.rerun()
+            
+            # Obtener logs
+            try:
+                estado_param = None if estado_filtro == "Todos" else estado_filtro
+                logs_df = database.obtener_logs_sistema(estado=estado_param, limite=limite_registros, engine=engine_l)
+                
+                if not logs_df.empty:
+                    # Estadísticas
+                    col_stats1, col_stats2, col_stats3 = st.columns(3)
+                    
+                    with col_stats1:
+                        total_logs = len(logs_df)
+                        st.metric("Total Logs", total_logs)
+                    
+                    with col_stats2:
+                        pendientes = len(logs_df[logs_df['estado'] == 'Pendiente'])
+                        st.metric("Pendientes", pendientes)
+                    
+                    with col_stats3:
+                        errores_bd = len(logs_df[logs_df['modulo'].str.contains('database', case=False, na=False)])
+                        st.metric("Errores BD", errores_bd)
+                    
+                    st.divider()
+                    
+                    # Tabla de logs con estilo
+                    st.write("**📋 Registro de Errores:**")
+                    
+                    # Formatear DataFrame para visualización
+                    display_df = logs_df.copy()
+                    
+                    # Resaltar errores de base de datos
+                    def highlight_errors(row):
+                        styles = [''] * len(row)
+                        if 'database' in str(row['modulo']).lower():
+                            styles[display_df.columns.get_loc('modulo')] = 'background-color: #ffcccc; color: #cc0000; font-weight: bold;'
+                        if row['estado'] == 'Pendiente':
+                            styles[display_df.columns.get_loc('estado')] = 'background-color: #fff3cd; color: #856404; font-weight: bold;'
+                        return styles
+                    
+                    # Aplicar estilos
+                    styled_df = display_df.style.apply(highlight_errors, axis=1)
+                    
+                    # Mostrar tabla
+                    st.dataframe(styled_df, use_container_width=True)
+                    
+                    # Acciones sobre logs seleccionados
+                    st.divider()
+                    st.write("**⚡ Acciones:**")
+                    
+                    col_accion1, col_accion2 = st.columns(2)
+                    
+                    with col_accion1:
+                        if st.button("✅ Marcar seleccionados como Resueltos", type="secondary"):
+                            mostrar_toast("Función de actualización masiva en desarrollo", "info")
+                    
+                    with col_accion2:
+                        if st.button("🗑️ Limpiar logs antiguos (más de 30 días)", type="secondary"):
+                            mostrar_toast("Función de limpieza en desarrollo", "info")
+                    
+                    # Detalles del error seleccionado
+                    if st.checkbox("📝 Mostrar detalles de error seleccionado"):
+                        error_id = st.selectbox(
+                            "Seleccionar error para ver detalles:",
+                            logs_df['id'].tolist(),
+                            format_func=lambda x: f"Error #{x} - {logs_df[logs_df['id'] == x]['fecha_hora'].values[0]}"
+                        )
+                        
+                        if error_id:
+                            error_detalle = logs_df[logs_df['id'] == error_id].iloc[0]
+                            
+                            st.markdown(f"""
+                            **📋 Detalles del Error #{error_id}:**
+                            
+                            - **Fecha/Hora:** {error_detalle['fecha_hora']}
+                            - **Usuario:** {error_detalle['usuario']}
+                            - **Módulo:** {error_detalle['modulo']}
+                            - **Línea:** {error_detalle['linea_codigo']}
+                            - **Estado:** {error_detalle['estado']}
+                            - **Nivel:** {error_detalle['nivel_error']}
+                            
+                            **Mensaje de Error:**
+                            ```
+                            {error_detalle['mensaje_error']}
+                            ```
+                            """)
+                            
+                            if error_detalle['stack_trace']:
+                                with st.expander("🔍 Stack Trace Completo"):
+                                    st.code(error_detalle['stack_trace'], language="python")
+                            
+                            # Botón para cambiar estado
+                            col_estado1, col_estado2 = st.columns(2)
+                            
+                            with col_estado1:
+                                if st.button(f"✅ Marcar como Resuelto #{error_id}", type="primary"):
+                                    if database.actualizar_estado_log(error_id, "Resuelto", engine_l):
+                                        mostrar_toast(f"Error #{error_id} marcado como resuelto", "success")
+                                        st.rerun()
+                                    else:
+                                        mostrar_toast("Error actualizando estado", "error")
+                            
+                            with col_estado2:
+                                if st.button(f"🔄 Reabrir Error #{error_id}", type="secondary"):
+                                    if database.actualizar_estado_log(error_id, "Pendiente", engine_l):
+                                        mostrar_toast(f"Error #{error_id} reabierto", "info")
+                                        st.rerun()
+                                    else:
+                                        mostrar_toast("Error actualizando estado", "error")
+                
+                else:
+                    st.info("ℹ️ No hay errores registrados en el sistema")
+                    
+                    # Botón para crear tabla si no existe
+                    if st.button("🔧 Crear tabla de logs", type="secondary"):
+                        if database.crear_tabla_logs_sistema(engine_l):
+                            mostrar_toast("Tabla de logs creada exitosamente", "success")
+                            st.rerun()
+                        else:
+                            mostrar_toast("Error creando tabla de logs", "error")
+                    
+                    # Botón de prueba de estrés
+                    st.divider()
+                    st.write("**🧪 Prueba de Estrés del Centinela:**")
+                    
+                    col_test1, col_test2 = st.columns(2)
+                    
+                    with col_test1:
+                        if st.button("🚨 Simular Error Crítico", type="primary"):
+                            with st.spinner("Simulando error crítico y enviando alerta..."):
+                                try:
+                                    # Optimizar trazabilidad antes de la prueba
+                                    database.optimizar_trazabilidad_session_state()
+                                    
+                                    # Simular error crítico
+                                    resultado = database.simular_error_critico(engine_l)
+                                    
+                                    if resultado['error_id']:
+                                        st.success(f"✅ {resultado['mensaje']}")
+                                        
+                                        if resultado['alerta_enviada']:
+                                            st.info("📧 Alerta crítica enviada a angelher@gmail.com")
+                                            st.code(f"ID de incidente: #{resultado['error_id']}")
+                                        else:
+                                            st.warning("⚠️ Alerta no enviada (revisar configuración SMTP)")
+                                    else:
+                                        st.error(f"❌ {resultado['mensaje']}")
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ Error en prueba de estrés: {e}")
+                    
+                    with col_test2:
+                        if st.button("🔍 Verificar Configuración", type="secondary"):
+                            try:
+                                # Verificar variables críticas
+                                database.optimizar_trazabilidad_session_state()
+                                
+                                # Verificar configuración de correo
+                                config = database.obtener_config_correo(engine_l)
+                                
+                                st.write("**📋 Estado del Sistema:**")
+                                
+                                if config:
+                                    st.success("✅ Configuración SMTP encontrada")
+                                    st.code(f"""
+Servidor: {config.get('servidor_smtp', 'N/A')}
+Puerto: {config.get('puerto', 'N/A')}
+Usuario: {config.get('usuario', 'N/A')}
+Remitente: {config.get('remitente', 'N/A')}
+                                    """)
+                                else:
+                                    st.warning("⚠️ No hay configuración SMTP")
+                                
+                                # Verificar variables de session_state
+                                st.write("**🔍 Variables de Trazabilidad:**")
+                                st.code(f"""
+Usuario: {st.session_state.user_data.get('login', 'N/A')}
+Rol: {st.session_state.get('rol', 'N/A')}
+SQLite Path: {st.session_state.get('sqlite_db_path', 'N/A')}
+                                """)
+                                
+                            except Exception as e:
+                                st.error(f"❌ Error verificando configuración: {e}")
+                
+            except Exception as e:
+                st.error(f"❌ Error obteniendo logs: {e}")
+                mostrar_toast("Error cargando logs del sistema", "error")
+        
+        # Sección de sincronización (solo en entorno local)
+        st.divider()
+        st.subheader("🔄 Sincronización de Datos")
+        
+        # Verificar si estamos en entorno local
+        if verificar_entorno_local():
+            st.write("📍 Entorno detectado: **Local**")
+            
+            # Mostrar información de base de datos espejo
+            espejo_info = get_info_espejo()
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**🪞 Base de Datos Espejo (Shadow DB):**")
+                st.code(f"""
+Database: {espejo_info['espejo']['database']}
+Host: {espejo_info['espejo']['host']}
+Port: {espejo_info['espejo']['port']}
+User: {espejo_info['espejo']['user']}
+Modo Desarrollo: {espejo_info['espejo']['modo_desarrollo']}
+                """)
+            
+            with col2:
+                st.write("**☁️ Base de Datos en la Nube:**")
+                render_url = os.environ.get("RENDER_EXTERNAL_URL", "No configurada")
+                st.code(f"""
+URL: {render_url[:50] + '...' if len(render_url) > 50 else render_url}
+Estado: {'Configurada' if render_url != 'No configurada' else 'No configurada'}
+                """)
+            
+            st.info("💡 Esta sección permite sincronizar datos desde el espejo local (foc26_espejo) hacia la nube (Render).")
+            
+            # Botones de sincronización
+            col_sync1, col_sync2 = st.columns(2)
+            
+            with col_sync1:
+                if st.button("📤 Subir a la Nube", type="primary", help="Sincronizar datos locales hacia la nube"):
+                    with st.spinner("Sincronizando datos hacia la nube..."):
+                        try:
+                            resultado = sincronizar_hacia_nube(engine_l, engine_r)
+                            if resultado['status'] == 'success':
+                                st.success(f"✅ Sincronización exitosa: {resultado['registros']} registros")
+                                registrar_auditoria_sistema(
+                                    usuario=st.session_state.user_data.get('login'),
+                                    transaccion='SYNC_TO_CLOUD',
+                                    detalles_adicionales=f"Registros: {resultado['registros']}"
+                                )
+                            else:
+                                st.error(f"❌ Error en sincronización: {resultado['message']}")
+                        except Exception as e:
+                            st.error(f"❌ Error crítico: {str(e)}")
+            
+            with col_sync2:
+                if st.button("📥 Bajar de la Nube", type="secondary", help="Traer datos desde la nube hacia local"):
+                    with st.spinner("Descargando datos desde la nube..."):
+                        try:
+                            resultado = traer_de_nube(engine_r, engine_l)
+                            if resultado['status'] == 'success':
+                                st.success(f"✅ Descarga exitosa: {resultado['registros']} registros")
+                                registrar_auditoria_sistema(
+                                    usuario=st.session_state.user_data.get('login'),
+                                    transaccion='SYNC_FROM_CLOUD',
+                                    detalles_adicionales=f"Registros: {resultado['registros']}"
+                                )
+                            else:
+                                st.error(f"❌ Error en descarga: {resultado['message']}")
+                        except Exception as e:
+                            st.error(f"❌ Error crítico: {str(e)}")
+            
+            # Estado de sincronización
+            st.divider()
+            st.subheader("📊 Estado de Sincronización")
+            
+            try:
+                # Obtener métricas de sincronización
+                metrics_local = get_metricas_dashboard(engine_l)
+                metrics_nube = get_metricas_dashboard(engine_r)
+                
+                col_comp1, col_comp2, col_comp3 = st.columns(3)
+                
+                with col_comp1:
+                    st.metric("📊 Registros Locales", metrics_local.get('total_usuarios', 0))
+                
+                with col_comp2:
+                    st.metric("☁️ Registros Nube", metrics_nube.get('total_usuarios', 0))
+                
+                with col_comp3:
+                    diferencia = metrics_local.get('total_usuarios', 0) - metrics_nube.get('total_usuarios', 0)
+                    st.metric("🔄 Diferencia", diferencia)
+                
+                # Logs de sincronización
+                logs_sync = obtener_logs_sincronizacion(engine_l)
+                
+                if logs_sync and len(logs_sync) > 0:
+                    st.write("📋 **Historial de Sincronización:**")
+                    df_logs = pd.DataFrame(logs_sync)
+                    df_logs['fecha'] = pd.to_datetime(df_logs['fecha']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                    st.dataframe(df_logs[['fecha', 'operacion', 'registros', 'estado']].rename(columns={
+                        'fecha': 'Fecha/Hora',
+                        'operacion': 'Operación',
+                        'registros': 'Registros',
+                        'estado': 'Estado'
+                    }), use_container_width=True)
+                else:
+                    st.info("ℹ️ No hay historial de sincronización")
+                    
+            except Exception as e:
+                st.error(f"❌ Error obteniendo estado: {e}")
+            
+        else:
+            st.warning("⚠️ Esta sección de sincronización solo está disponible en entorno local")
+            st.info("💡 Para sincronizar datos, ejecute el sistema en su entorno local")
+        
+        # Protocolos de ITIL
+        st.divider()
+        st.subheader("📋 Protocolos ITIL")
+        
+        with st.expander("🔄 Protocolo de Transición de Servicios"):
+            st.markdown("""
+            **Fase 1: Evaluación**
+            - Verificar integridad de datos locales
+            - Validar estructura de tablas
+            - Revisar consistency de relaciones
+            
+            **Fase 2: Preparación**
+            - Backup de base de datos actual
+            - Crear puntos de restauración
+            - Documentar estado actual
+            
+            **Fase 3: Ejecución**
+            - Sincronizar datos hacia nube
+            - Validar transferencia
+            - Verificar integridad
+            
+            **Fase 4: Validación**
+            - Pruebas funcionales
+            - Verificación de datos
+            - Aprobación de stakeholders
+            
+            **Fase 5: Cierre**
+            - Documentación de cambios
+            - Actualización de registros
+            - Comunicación a usuarios
+            """)
+        
+        with st.expander("🔧 Protocolo de Gestión de Cambios"):
+            st.markdown("""
+            **1. Solicitud de Cambio**
+            - Identificar necesidad
+            - Evaluar impacto
+            - Documentar requerimientos
+            
+            **2. Evaluación**
+            - Análisis de riesgos
+            - Viabilidad técnica
+            - Recursos requeridos
+            
+            **3. Aprobación**
+            - Revisión por stakeholders
+            - Autorización formal
+            - Planificación
+            
+            **4. Implementación**
+            - Ejecución del cambio
+            - Monitoreo continuo
+            - Documentación
+            
+            **5. Verificación**
+            - Pruebas de aceptación
+            - Validación funcional
+            - Retroalimentación
+            """)
+        
+        with st.expander("📊 Protocolo de Monitoreo"):
+            st.markdown("""
+            **Métricas Clave:**
+            - Disponibilidad del sistema
+            - Tiempo de respuesta
+            - Tasa de errores
+            - Uso de recursos
+            
+            **Alertas:**
+            - Caídas de servicio
+            - Errores críticos
+            - Rendimiento degradado
+            - Problemas de seguridad
+            
+            **Reportes:**
+            - Diarios: Estado general
+            - Semanales: Tendencias
+            - Mensuales: Análisis profundo
+            - Anuales: Estratégicos
+            """)
+        
+        # Botón de diagnóstico completo
+        st.divider()
+        
+        col_diag1, col_diag2 = st.columns(2)
+        
+        with col_diag1:
+            if st.button("🔍 Ejecutar Diagnóstico Completo", type="primary"):
+                with st.spinner("Ejecutando diagnóstico del sistema..."):
+                    try:
+                        # Verificar tablas
+                        tablas_ok = verificar_tablas_sistema(engine_l)
+                        
+                        # Verificar conexiones
+                        conn_local = database.get_connection_info()
+                        
+                        # Verificar logs
+                        logs_count = len(database.obtener_logs_sistema(limite=1, engine=engine_l))
+                        
+                        st.success("✅ Diagnóstico completado")
+                        st.json({
+                            "tablas_sistema": tablas_ok,
+                            "conexion_local": conn_local,
+                            "logs_activos": logs_count > 0,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error en diagnóstico: {e}")
+        
+        with col_diag2:
+            if st.button("📊 Generar Reporte de Sistema", type="secondary"):
+                with st.spinner("Generando reporte..."):
+                    try:
+                        # Recopilar métricas
+                        metrics = get_metricas_dashboard(engine_l)
+                        logs = database.obtener_logs_sistema(limite=10, engine=engine_l)
+                        
+                        st.info("📋 Reporte generado exitosamente")
+                        
+                        # Mostrar resumen
+                        col_rep1, col_rep2 = st.columns(2)
+                        
+                        with col_rep1:
+                            st.metric("Usuarios Totales", metrics.get('total_usuarios', 0))
+                            st.metric("Estudiantes", metrics.get('estudiantes', 0))
+                        
+                        with col_rep2:
+                            st.metric("Profesores", metrics.get('profesores', 0))
+                            st.metric("Admins", metrics.get('administradores', 0))
+                        
+                        if not logs.empty:
+                            st.write("📋 **Errores Recientes:**")
+                            st.dataframe(logs[['fecha_hora', 'modulo', 'mensaje_error', 'estado']].head(5))
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error generando reporte: {e}")
+        
+    else:
+        st.header("⚙️ Gestión de Ambientes (ITIL)")
+        st.error("🔒 Esta sección está disponible únicamente para el administrador principal (angelher@gmail.com)")
+        mostrar_mensaje_restringido()
         st.info("""
         📋 **PROTOCOL DE TRANSICIÓN DE AMBIENTES**
         
@@ -2782,7 +3920,7 @@ web: streamlit run main.py --server.port $PORT --server.address 0.0.0.0
         # Procesar formulario
         if btn_guardar:
             if servidor_smtp and puerto and usuario and password_app and remitente:
-                if database.guardar_config_correo(servidor_smtp, puerto, usuario, password_app, remitente, engine_l):
+                if database.guardar_config_correo(servidor_smtp, puerto, usuario, password_app, remitente, usar_tls=None, engine=engine_l):
                     st.success("✅ Configuración de correo guardada exitosamente")
                     st.rerun()
                 else:
@@ -2842,12 +3980,13 @@ web: streamlit run main.py --server.port $PORT --server.address 0.0.0.0
                         try:
                             # Actualizar remitente a ab6643881@gmail.com
                             database.guardar_config_correo(
-                                config_actual['servidor_smtp'], 
-                                config_actual['puerto'], 
-                                config_actual['usuario'], 
-                                config_actual['password_app'], 
-                                'ab6643881@gmail.com', 
-                                engine_l
+                                servidor=config_actual['servidor_smtp'], 
+                                puerto=config_actual['puerto'], 
+                                usuario=config_actual['usuario'], 
+                                contrasena=config_actual['password_app'], 
+                                remitente='ab6643881@gmail.com',
+                                usar_tls=None,
+                                engine=engine_l
                             )
                             
                             # Enviar correo de confirmación
@@ -3005,7 +4144,6 @@ web: streamlit run main.py --server.port $PORT --server.address 0.0.0.0
         except Exception as e:
             st.error(f"Error obteniendo logs: {e}")
         
-    else:
         st.header("⚙️ Gestión de Ambientes (ITIL)")
         st.error("🔒 Esta sección está disponible únicamente para el administrador principal (angelher@gmail.com)")
         mostrar_mensaje_restringido()
