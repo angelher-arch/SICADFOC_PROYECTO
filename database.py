@@ -2,6 +2,7 @@
 import pandas as pd
 import sqlite3
 import hashlib
+from datetime import datetime
 from sqlalchemy import create_engine, text
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
@@ -16,12 +17,12 @@ def crear_engine_dinamico():
     
     if database_url and 'render.com' in database_url:
         # Ambiente de nube (Render)
-        print("🚀 Detectado ambiente de nube (Render) - Usando PostgreSQL")
+        print("Detectado ambiente de nube (Render) - Usando PostgreSQL")
         return create_engine(database_url)
     else:
         # Ambiente local
         SQLITE_DB_PATH = 'foc26_limpio.db'
-        print(f"🛠️ Detectado ambiente local - Usando SQLite: {SQLITE_DB_PATH}")
+        print(f"Detectado ambiente local - Usando SQLite: {SQLITE_DB_PATH}")
         return create_engine(f"sqlite:///{SQLITE_DB_PATH}")
 
 # Crear engine global
@@ -474,6 +475,326 @@ def generar_backup_sql():
     except Exception as e:
         print(f"Error generando backup: {e}")
         return {"status": "error", "message": str(e)}
+
+def crear_tabla_configuracion_correo():
+    """Crea la tabla de configuración de correo si no existe"""
+    try:
+        with engine.connect() as conn:
+            crear_tabla = '''
+            CREATE TABLE IF NOT EXISTS configuracion_correo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                servidor_smtp TEXT NOT NULL,
+                puerto INTEGER NOT NULL,
+                usuario TEXT NOT NULL,
+                password_app TEXT NOT NULL,
+                remitente TEXT NOT NULL,
+                fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP,
+                fecha_actualizacion TEXT DEFAULT CURRENT_TIMESTAMP,
+                activo INTEGER DEFAULT 1
+            )
+            '''
+            
+            conn.execute(text(crear_tabla))
+            conn.commit()
+            
+            # Verificar si hay configuración existente
+            verificar = conn.execute(text('SELECT COUNT(*) FROM configuracion_correo'))
+            count = verificar.fetchone()[0]
+            
+            if count == 0:
+                # Insertar configuración por defecto
+                insertar = '''
+                INSERT INTO configuracion_correo (servidor_smtp, puerto, usuario, password_app, remitente)
+                VALUES (:servidor, :puerto, :usuario, :password, :remitente)
+                '''
+                
+                conn.execute(text(insertar), {
+                    'servidor': 'smtp.gmail.com',
+                    'puerto': 587,
+                    'usuario': '',
+                    'password': '',
+                    'remitente': 'noreply@iujo.edu'
+                })
+                conn.commit()
+                
+            return True
+    except Exception as e:
+        print(f"Error creando tabla configuracion_correo: {e}")
+        return False
+
+def obtener_config_correo(engine=None):
+    """Obtiene la configuración de correo activa"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            query = '''
+            SELECT servidor_smtp, puerto, usuario, password_app, remitente, fecha_actualizacion
+            FROM configuracion_correo 
+            WHERE activo = 1 
+            ORDER BY fecha_actualizacion DESC 
+            LIMIT 1
+            '''
+            
+            result = conn.execute(text(query))
+            config = result.fetchone()
+            
+            if config:
+                return {
+                    'servidor_smtp': config[0],
+                    'puerto': config[1],
+                    'usuario': config[2],
+                    'password_app': config[3],
+                    'remitente': config[4],
+                    'fecha_actualizacion': config[5]
+                }
+            else:
+                return None
+                
+    except Exception as e:
+        print(f"Error obteniendo configuración de correo: {e}")
+        return None
+
+def guardar_config_correo(servidor, puerto, usuario, contrasena, remitente, engine=None):
+    """Guarda o actualiza la configuración de correo"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Desactivar configuraciones anteriores
+            conn.execute(text('UPDATE configuracion_correo SET activo = 0'))
+            
+            # Insertar nueva configuración
+            insertar = '''
+            INSERT INTO configuracion_correo 
+            (servidor_smtp, puerto, usuario, password_app, remitente, fecha_actualizacion, activo)
+            VALUES (:servidor, :puerto, :usuario, :password, :remitente, datetime('now'), 1)
+            '''
+            
+            conn.execute(text(insertar), {
+                'servidor': servidor,
+                'puerto': puerto,
+                'usuario': usuario,
+                'password': contrasena,
+                'remitente': remitente
+            })
+            
+            conn.commit()
+            return True
+            
+    except Exception as e:
+        print(f"Error guardando configuración de correo: {e}")
+        return False
+
+def probar_configuracion_correo(engine=None):
+    """Prueba la configuración de correo actual"""
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        config = obtener_config_correo(engine)
+        if not config:
+            return False, "No hay configuración de correo"
+        
+        # Crear conexión SMTP según el puerto
+        if config['puerto'] == 465:
+            # Conexión SSL para Gmail
+            server = smtplib.SMTP_SSL(config['servidor_smtp'], config['puerto'])
+        else:
+            # Conexión TLS para otros puertos
+            server = smtplib.SMTP(config['servidor_smtp'], config['puerto'])
+            server.starttls()
+        
+        # Intentar autenticación
+        server.login(config['usuario'], config['password_app'])
+        
+        # Crear email de prueba
+        msg = MIMEMultipart()
+        msg['From'] = config['remitente']
+        msg['To'] = config['usuario']  # Enviar al mismo usuario
+        msg['Subject'] = 'Prueba de Configuración SMTP - SICADFOC'
+        
+        body = '''
+        Este es un correo de prueba del sistema SICADFOC.
+        
+        Si recibes este correo, la configuración SMTP es correcta.
+        
+        Fecha y hora: {}
+        Servidor: {}
+        Puerto: {}
+        '''.format(
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            config['servidor_smtp'],
+            config['puerto']
+        )
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Enviar correo
+        server.send_message(msg)
+        server.quit()
+        
+        return True, "Correo de prueba enviado exitosamente"
+        
+    except Exception as e:
+        return False, f"Error probando correo: {str(e)}"
+
+def enviar_confirmacion_registro(email_destino, engine=None):
+    """Envía correo de confirmación de registro"""
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        import hashlib
+        import time
+        
+        config = obtener_config_correo(engine)
+        if not config:
+            return False, "No hay configuración de correo"
+        
+        # Generar token único de confirmación
+        timestamp = str(int(time.time()))
+        token_data = f"{email_destino}:{timestamp}"
+        token = hashlib.sha256(token_data.encode()).hexdigest()[:32]
+        
+        # Guardar token en base de datos
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Crear tabla de tokens si no existe
+            conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS tokens_confirmacion (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                token TEXT NOT NULL,
+                fecha_creacion TEXT DEFAULT CURRENT_TIMESTAMP,
+                usado INTEGER DEFAULT 0,
+                UNIQUE(email, token)
+            )
+            '''))
+            
+            # Insertar nuevo token
+            conn.execute(text('''
+            INSERT OR REPLACE INTO tokens_confirmacion (email, token, fecha_creacion, usado)
+            VALUES (:email, :token, datetime('now'), 0)
+            '''), {'email': email_destino, 'token': token})
+            
+            conn.commit()
+        
+        # Crear enlace de confirmación
+        enlace_confirmacion = f"https://sicadfoc-proyecto.onrender.com?confirmar={token}&email={email_destino}"
+        
+        # Crear conexión SMTP según el puerto
+        if config['puerto'] == 465:
+            # Conexión SSL para Gmail
+            server = smtplib.SMTP_SSL(config['servidor_smtp'], config['puerto'])
+        else:
+            # Conexión TLS para otros puertos
+            server = smtplib.SMTP(config['servidor_smtp'], config['puerto'])
+            server.starttls()
+        
+        server.login(config['usuario'], config['password_app'])
+        
+        # Crear email de confirmación
+        msg = MIMEMultipart()
+        msg['From'] = config['remitente']
+        msg['To'] = email_destino
+        msg['Subject'] = 'Confirmación de Registro - SICADFOC'
+        
+        # Obtener datos del usuario para personalizar el mensaje
+        nombre_usuario = ""
+        cedula_usuario = ""
+        rol_usuario = ""
+        
+        try:
+            with engine.connect() as conn:
+                verificar = conn.execute(text('SELECT nombre, cedula, rol FROM usuario WHERE login = :email'), 
+                                       {'email': email_destino})
+                usuario_data = verificar.fetchone()
+                
+                if usuario_data:
+                    nombre_usuario = usuario_data[0]
+                    cedula_usuario = usuario_data[1]
+                    rol_usuario = usuario_data[2]
+        except:
+            pass  # Si no se pueden obtener datos, usar mensaje genérico
+        
+        body = f'''
+        Usted ha ingresado al SICADFOC, por favor valide su correo de acceso.
+        
+        DATOS DE REGISTRO:
+        Cédula: {cedula_usuario}
+        Nombre: {nombre_usuario}
+        Rol: {rol_usuario}
+        Correo: {email_destino}
+        
+        Para confirmar su correo electrónico, haga clic en el siguiente enlace:
+        
+        {enlace_confirmacion}
+        
+        Si no solicitó este registro, ignore este correo.
+        
+        Este enlace expirará en 24 horas.
+        
+        ---
+        Sistema Integral de Control Académico y Docente FOC26
+        Instituto Universitario Jesús Obrero
+        '''
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Enviar correo
+        server.send_message(msg)
+        server.quit()
+        
+        return True, f"Correo de confirmación enviado a {email_destino}"
+        
+    except Exception as e:
+        return False, f"Error enviando confirmación: {str(e)}"
+
+def confirmar_correo_token(token, email, engine=None):
+    """Confirma el correo usando el token"""
+    try:
+        if engine is None:
+            engine = globals()['engine']
+            
+        with engine.connect() as conn:
+            # Verificar token
+            verificar = conn.execute(text('''
+            SELECT email, usado, fecha_creacion 
+            FROM tokens_confirmacion 
+            WHERE token = :token AND email = :email AND usado = 0
+            '''), {'token': token, 'email': email})
+            
+            token_data = verificar.fetchone()
+            
+            if not token_data:
+                return False, "Token inválido o ya usado"
+            
+            # Verificar que no haya expirado (24 horas)
+            from datetime import datetime, timedelta
+            fecha_creacion = datetime.strptime(token_data[2], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - fecha_creacion > timedelta(hours=24):
+                return False, "Token expirado"
+            
+            # Marcar token como usado
+            conn.execute(text('UPDATE tokens_confirmacion SET usado = 1 WHERE token = :token'), 
+                       {'token': token})
+            
+            # Actualizar correo_verificado en tabla usuario
+            conn.execute(text('UPDATE usuario SET correo_verificado = 1 WHERE login = :email'), 
+                       {'email': email})
+            
+            conn.commit()
+            
+            return True, f"Correo {email} confirmado exitosamente"
+            
+    except Exception as e:
+        return False, f"Error confirmando correo: {str(e)}"
 
 def migrar_datos_a_nube():
     try:

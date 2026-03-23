@@ -501,6 +501,56 @@ tipo_ambiente = detectar_base_datos_conectada()
 configurar_tema_segun_ambiente(tipo_ambiente)
 
 # =================================================================
+# 2.4.1. PROCESAMIENTO DE CONFIRMACIÓN DE CORREO
+# =================================================================
+
+# Verificar si hay parámetros de confirmación en la URL
+query_params = st.query_params
+if 'confirmar' in query_params and 'email' in query_params:
+    token = query_params['confirmar']
+    email = query_params['email']
+    
+    st.header("📧 Confirmación de Correo Electrónico")
+    
+    with st.spinner("Procesando confirmación..."):
+        try:
+            from database import confirmar_correo_token
+            exito, mensaje = confirmar_correo_token(token, email, engine_l)
+            
+            if exito:
+                st.success("✅ ¡Correo Confirmado Exitosamente!")
+                st.info(mensaje)
+                st.balloons()
+                
+                # Mostrar información del usuario
+                with engine_l.connect() as conn:
+                    verificar = conn.execute(database.text('SELECT login, rol FROM usuario WHERE login = :email'), 
+                                           {'email': email})
+                    usuario = verificar.fetchone()
+                    
+                    if usuario:
+                        st.success(f"👤 Usuario: {usuario[0]}")
+                        st.success(f"🔐 Rol: {usuario[1]}")
+                        st.success("✅ Correo verificado: Sí")
+                
+                st.info("🎉 Ahora puede iniciar sesión con su correo verificado.")
+                
+            else:
+                st.error("❌ Error en la Confirmación")
+                st.error(mensaje)
+                
+        except Exception as e:
+            st.error(f"❌ Error procesando confirmación: {str(e)}")
+    
+    # Botón para ir al login
+    if st.button("🚪 Ir al Inicio de Sesión"):
+        # Limpiar parámetros de URL
+        st.query_params.clear()
+        st.rerun()
+    
+    st.stop()  # Detener ejecución para mostrar solo la confirmación
+
+# =================================================================
 # 2.5. SISTEMA DE ROLES Y PERFILES (RBAC)
 # =================================================================
 def obtener_rol_usuario():
@@ -534,6 +584,14 @@ def registrar_auditoria_sistema(usuario, transaccion, tabla_afectada=None, detal
 def es_admin():
     """Verifica si el usuario es administrador"""
     return obtener_rol_usuario() == 'admin'
+
+def es_super_admin():
+    """Verifica si el usuario es Super-Admin (angelher@gmail.com) con privilegios completos"""
+    return st.session_state.user_data.get('login') == 'angelher@gmail.com'
+
+def es_admin_o_super_admin():
+    """Verifica si el usuario es administrador o Super-Admin"""
+    return es_admin() or es_super_admin()
 
 def es_profesor():
     """Verifica si el usuario es profesor"""
@@ -1072,6 +1130,50 @@ elif modulo == "Gestión Estudiantil":
                             engine=engine_l
                         )
                         transaccion_tipo = 'REGISTRO_MANUAL_ESTUDIANTE'
+                        
+                        # Si el estudiante se registró exitosamente y tiene correo, enviar confirmación
+                        if exito and correo_ind:
+                            try:
+                                # Crear usuario en tabla usuario con correo_verificado = 0
+                                import hashlib
+                                password_temp = params_est["cedula"]  # Usar cédula como contraseña temporal
+                                hashed_password = hashlib.sha256(password_temp.encode()).hexdigest()
+                                
+                                with engine_l.connect() as conn:
+                                    # Verificar si ya existe usuario
+                                    verificar_usuario = conn.execute(database.text('SELECT login FROM usuario WHERE login = :email'), 
+                                                                   {'email': correo_ind})
+                                    usuario_existente = verificar_usuario.fetchone()
+                                    
+                                    if not usuario_existente:
+                                        # Insertar nuevo usuario
+                                        conn.execute(database.text('''
+                                        INSERT INTO usuario (cedula, nombre, email, contrasena, rol, activo, correo_verificado)
+                                        VALUES (:cedula, :nombre, :email, :password, :rol, 1, 0)
+                                        '''), {
+                                            'cedula': params_est["cedula"],
+                                            'nombre': f"{params_est['nombre']} {params_est['apellido']}".strip(),
+                                            'email': correo_ind,
+                                            'password': hashed_password,
+                                            'rol': 'estudiante'
+                                        })
+                                        conn.commit()
+                                        
+                                        # Enviar correo de confirmación
+                                        from database import enviar_confirmacion_registro
+                                        exito_correo, mensaje_correo = enviar_confirmacion_registro(correo_ind, engine_l)
+                                        
+                                        if exito_correo:
+                                            st.info(f"📧 Correo de confirmación enviado a {correo_ind}")
+                                            st.info("📋 Datos de acceso:")
+                                            st.code(f"Usuario: {correo_ind}\nContraseña: {params_est['cedula']}")
+                                            st.info("El estudiante debe validar su correo para activar su cuenta")
+                                        else:
+                                            st.warning(f"⚠️ No se pudo enviar correo de confirmación: {mensaje_correo}")
+                                            st.info("El estudiante fue registrado pero no se pudo enviar el correo")
+                            except Exception as e:
+                                st.warning(f"⚠️ Error creando usuario/enviando correo: {e}")
+                                st.info("El estudiante fue registrado en persona pero no se pudo crear el usuario del sistema")
                     
                     if exito:
                         # Registrar auditoría
@@ -1409,6 +1511,50 @@ elif modulo == "Gestión de Profesores":
                         )
                         
                         if exito:
+                            # Si el profesor se registró exitosamente y tiene correo, enviar confirmación
+                            if correo_prof:
+                                try:
+                                    # Crear usuario en tabla usuario con correo_verificado = 0
+                                    import hashlib
+                                    password_temp = params_prof["cedula"]  # Usar cédula como contraseña temporal
+                                    hashed_password = hashlib.sha256(password_temp.encode()).hexdigest()
+                                    
+                                    with engine_l.connect() as conn:
+                                        # Verificar si ya existe usuario
+                                        verificar_usuario = conn.execute(database.text('SELECT login FROM usuario WHERE login = :email'), 
+                                                                       {'email': correo_prof})
+                                        usuario_existente = verificar_usuario.fetchone()
+                                        
+                                        if not usuario_existente:
+                                            # Insertar nuevo usuario
+                                            conn.execute(database.text('''
+                                            INSERT INTO usuario (cedula, nombre, email, contrasena, rol, activo, correo_verificado)
+                                            VALUES (:cedula, :nombre, :email, :password, :rol, 1, 0)
+                                            '''), {
+                                                'cedula': params_prof["cedula"],
+                                                'nombre': f"{params_prof['nombre']} {params_prof['apellido']}".strip(),
+                                                'email': correo_prof,
+                                                'password': hashed_password,
+                                                'rol': 'profesor'
+                                            })
+                                            conn.commit()
+                                            
+                                            # Enviar correo de confirmación
+                                            from database import enviar_confirmacion_registro
+                                            exito_correo, mensaje_correo = enviar_confirmacion_registro(correo_prof, engine_l)
+                                            
+                                            if exito_correo:
+                                                st.info(f"📧 Correo de confirmación enviado a {correo_prof}")
+                                                st.info("📋 Datos de acceso:")
+                                                st.code(f"Usuario: {correo_prof}\nContraseña: {params_prof['cedula']}")
+                                                st.info("El profesor debe validar su correo para activar su cuenta")
+                                            else:
+                                                st.warning(f"⚠️ No se pudo enviar correo de confirmación: {mensaje_correo}")
+                                                st.info("El profesor fue registrado pero no se pudo enviar el correo")
+                                except Exception as e:
+                                    st.warning(f"⚠️ Error creando usuario/enviando correo: {e}")
+                                    st.info("El profesor fue registrado en persona pero no se pudo crear el usuario del sistema")
+                            
                             # Registrar auditoría
                             registrar_auditoria(
                                 usuario=st.session_state.user_data.get('login'),
@@ -2044,7 +2190,7 @@ elif modulo == "Reportes":
 
 # --- MÓDULO F: CONFIGURACIÓN ---
 elif modulo == "Configuración":
-    if es_admin() and st.session_state.user_data.get('login') == 'angelher@gmail.com':
+    if es_admin_o_super_admin():
         st.header(" Configuración del Sistema")
         st.write("Parámetros del servidor de correo electrónico")
         
@@ -2270,7 +2416,7 @@ Estado: {'Configurada' if render_url != 'No configurada' else 'No configurada'}
 
 # --- MÓDULO G: GESTIÓN DE AMBIENTES (ITIL) ---
 elif modulo == "⚙️ Gestión de Ambientes (ITIL)":
-    if es_admin() and st.session_state.user_data.get('login') == 'angelher@gmail.com':
+    if es_admin_o_super_admin():
         st.header("⚙️ Gestión de Ambientes (ITIL)")
         st.write("Administración de ambientes y protocolos de transición")
         
@@ -2579,6 +2725,285 @@ web: streamlit run main.py --server.port $PORT --server.address 0.0.0.0
                 st.metric("Usuarios Nube", metricas_nube.get('estudiantes', 0))
             except:
                 st.metric("Usuarios Nube", 0)
+        
+        st.divider()
+        
+        # Pestaña de Configuración de Correo
+        st.subheader("📧 Configuración de Correo SMTP")
+        
+        # Crear tabla si no existe
+        database.crear_tabla_configuracion_correo()
+        
+        # Obtener configuración actual
+        config_actual = database.obtener_config_correo(engine_l)
+        
+        # Formulario de configuración
+        with st.form("form_correo_smtp"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                servidor_smtp = st.text_input(
+                    "Servidor SMTP", 
+                    value=config_actual.get('servidor_smtp', '') if config_actual else 'smtp.gmail.com',
+                    help="Ej: smtp.gmail.com, smtp.outlook.com"
+                )
+                puerto = st.number_input(
+                    "Puerto", 
+                    value=config_actual.get('puerto', 587) if config_actual else 587,
+                    min_value=1, max_value=65535
+                )
+                usuario = st.text_input(
+                    "Usuario SMTP", 
+                    value=config_actual.get('usuario', '') if config_actual else '',
+                    help="Correo completo para autenticación"
+                )
+            
+            with col2:
+                password_app = st.text_input(
+                    "Password de Aplicación", 
+                    value=config_actual.get('password_app', '') if config_actual else '',
+                    type="password",
+                    help="Use password de aplicación, no la contraseña normal del correo"
+                )
+                remitente = st.text_input(
+                    "Correo Remitente", 
+                    value=config_actual.get('remitente', '') if config_actual else 'noreply@iujo.edu',
+                    help="Correo desde donde se enviarán los mensajes"
+                )
+            
+            col_guardar, col_probar = st.columns(2)
+            
+            with col_guardar:
+                btn_guardar = st.form_submit_button("💾 Guardar Configuración", type="primary")
+            
+            with col_probar:
+                btn_probar = st.form_submit_button("🧪 Probar Conexión", type="secondary")
+        
+        # Procesar formulario
+        if btn_guardar:
+            if servidor_smtp and puerto and usuario and password_app and remitente:
+                if database.guardar_config_correo(servidor_smtp, puerto, usuario, password_app, remitente, engine_l):
+                    st.success("✅ Configuración de correo guardada exitosamente")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al guardar la configuración")
+            else:
+                st.error("⚠️ Complete todos los campos obligatorios")
+        
+        if btn_probar:
+            if servidor_smtp and puerto and usuario and password_app and remitente:
+                with st.spinner("Probando conexión SMTP..."):
+                    exito, mensaje = database.probar_configuracion_correo(engine_l)
+                    
+                if exito:
+                    st.success("✅ Prueba exitosa")
+                    st.info(mensaje)
+                else:
+                    st.error("❌ Error en la prueba")
+                    st.error(mensaje)
+            else:
+                st.error("⚠️ Complete todos los campos antes de probar")
+        
+        # Mostrar configuración actual
+        if config_actual:
+            st.divider()
+            st.write("**Configuración Actual:**")
+            col_info1, col_info2 = st.columns(2)
+            
+            with col_info1:
+                st.metric("Servidor", config_actual['servidor_smtp'])
+                st.metric("Puerto", config_actual['puerto'])
+            
+            with col_info2:
+                st.metric("Usuario", config_actual['usuario'])
+                st.metric("Remitente", config_actual['remitente'])
+            
+            st.caption(f"Última actualización: {config_actual.get('fecha_actualizacion', 'N/A')}")
+        
+        st.divider()
+        
+        # Prueba de Flujo de Validación
+        st.subheader("🧪 Prueba de Flujo de Validación")
+        st.write("**Enviar correo de confirmación a mi correo personal**")
+        
+        col_flujo1, col_flujo2 = st.columns(2)
+        
+        with col_flujo1:
+            email_prueba = st.text_input(
+                "Correo para prueba", 
+                value="ab6643881@gmail.com",
+                help="Correo al que se enviará el mensaje de prueba"
+            )
+        
+        with col_flujo2:
+            if st.button("📧 Probar Flujo de Validación", type="primary"):
+                if email_prueba and config_actual:
+                    with st.spinner("Enviando correo de confirmación..."):
+                        try:
+                            # Actualizar remitente a ab6643881@gmail.com
+                            database.guardar_config_correo(
+                                config_actual['servidor_smtp'], 
+                                config_actual['puerto'], 
+                                config_actual['usuario'], 
+                                config_actual['password_app'], 
+                                'ab6643881@gmail.com', 
+                                engine_l
+                            )
+                            
+                            # Enviar correo de confirmación
+                            exito, mensaje = database.enviar_confirmacion_registro(email_prueba, engine_l)
+                            
+                            if exito:
+                                st.success("✅ Correo de confirmación enviado")
+                                st.info(mensaje)
+                                
+                                # Mostrar enlace generado (para pruebas)
+                                with st.expander("🔗 Ver enlace generado (pruebas)"):
+                                    st.code("Enlace de confirmación generado. Revise su correo.")
+                                    st.caption("El enlace contiene un token único que expira en 24 horas.")
+                                
+                            else:
+                                st.error("❌ Error enviando correo")
+                                st.error(mensaje)
+                                
+                        except Exception as e:
+                            st.error(f"❌ Error general: {e}")
+                else:
+                    st.error("⚠️ Complete el correo de prueba y asegúrese de tener configuración SMTP")
+        
+        # Mostrar estado de verificación de usuarios
+        st.divider()
+        st.subheader("📋 Estado de Verificación de Correos")
+        
+        try:
+            with engine_l.connect() as conn:
+                # Obtener usuarios y su estado de verificación
+                usuarios = conn.execute(database.text('''
+                SELECT login, rol, correo_verificado, activo 
+                FROM usuario 
+                ORDER BY rol, login
+                ''')).fetchall()
+                
+                if usuarios:
+                    df_usuarios = pd.DataFrame(usuarios, columns=['Login', 'Rol', 'Correo Verificado', 'Activo'])
+                    
+                    # Formatear para mejor visualización
+                    df_usuarios['Correo Verificado'] = df_usuarios['Correo Verificado'].apply(
+                        lambda x: '✅ Sí' if x == 1 else '❌ No'
+                    )
+                    df_usuarios['Activo'] = df_usuarios['Activo'].apply(
+                        lambda x: '✅ Sí' if x == 1 else '❌ No'
+                    )
+                    
+                    st.dataframe(df_usuarios, use_container_width=True)
+                    
+                    # Estadísticas
+                    total = len(df_usuarios)
+                    verificados = len(df_usuarios[df_usuarios['Correo Verificado'] == '✅ Sí'])
+                    
+                    col_stat1, col_stat2, col_stat3 = st.columns(3)
+                    with col_stat1:
+                        st.metric("👥 Total Usuarios", total)
+                    with col_stat2:
+                        st.metric("✅ Correos Verificados", verificados)
+                    with col_stat3:
+                        st.metric("📊 Porcentaje Verificado", f"{(verificados/total*100):.1f}%")
+                        
+                else:
+                    st.info("No hay usuarios registrados")
+                    
+        except Exception as e:
+            st.error(f"Error obteniendo estado de verificación: {e}")
+        
+        st.divider()
+        
+        # Interfaz de Sincronización
+        st.subheader("🔄 Sincronización de Datos")
+        
+        col_sync1, col_sync2 = st.columns(2)
+        
+        with col_sync1:
+            st.write("**Subir a la Nube (Ambiente Blanco):**")
+            if st.button("⬆️ Subir cambios a la Nube", type="primary"):
+                # Confirmación
+                st.warning("⚠️ **ADVERTENCIA DE SINCRONIZACIÓN**")
+                st.write("""
+                Esta acción sobrescribirá los datos en la nube con los datos locales.
+                
+                **Acciones a realizar:**
+                - Leer datos de la base local (foc26_limpio.db)
+                - Aplicar lógica de Upsert en la nube (actualizar si existe, insertar si no)
+                - Registrar log de sincronización
+                
+                **¿Desea continuar?**
+                """)
+                
+                if st.button("✅ Confirmar Subida a Nube", key="confirm_subir"):
+                    with st.spinner("Sincronizando hacia la nube..."):
+                        try:
+                            import pivote_datos
+                            resultados = pivote_datos.sincronizar_todas_tablas_hacia_nube()
+                            
+                            st.success("✅ Sincronización completada")
+                            
+                            for resultado in resultados:
+                                if resultado['exito']:
+                                    st.success(f"📊 {resultado['tabla']}: {resultado['mensaje']}")
+                                else:
+                                    st.error(f"❌ {resultado['tabla']}: {resultado['mensaje']}")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error en sincronización: {e}")
+        
+        with col_sync2:
+            st.write("**Bajar a Desarrollo (Ambiente Oscuro):**")
+            if st.button("⬇️ Bajar cambios a Desarrollo", type="primary"):
+                # Confirmación
+                st.warning("⚠️ **ADVERTENCIA DE SOBRESCRITURA**")
+                st.write("""
+                Esta acción REEMPLAZARÁ completamente los datos locales con los de la nube.
+                
+                **Acciones a realizar:**
+                - Descargar todos los datos desde la nube (Render)
+                - Limpiar tablas locales (foc26_limpio.db)
+                - Insertar datos de la nube en tablas locales
+                - Registrar log de sincronización
+                
+                **¿Desea continuar?**
+                """)
+                
+                if st.button("✅ Confirmar Bajada a Desarrollo", key="confirm_bajar"):
+                    with st.spinner("Descargando desde la nube..."):
+                        try:
+                            import pivote_datos
+                            resultados = pivote_datos.traer_todas_tablas_desde_nube()
+                            
+                            st.success("✅ Descarga completada")
+                            
+                            for resultado in resultados:
+                                if resultado['exito']:
+                                    st.success(f"📊 {resultado['tabla']}: {resultado['mensaje']}")
+                                else:
+                                    st.error(f"❌ {resultado['tabla']}: {resultado['mensaje']}")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error en descarga: {e}")
+        
+        # Mostrar último log de sincronización
+        st.divider()
+        st.subheader("📜 Historial de Sincronización")
+        
+        try:
+            import pivote_datos
+            logs = pivote_datos.obtener_ultima_sincronizacion()
+            
+            if logs is not None and len(logs) > 0:
+                st.dataframe(logs, use_container_width=True)
+            else:
+                st.info("No hay registros de sincronización")
+                
+        except Exception as e:
+            st.error(f"Error obteniendo logs: {e}")
         
     else:
         st.header("⚙️ Gestión de Ambientes (ITIL)")
