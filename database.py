@@ -158,7 +158,7 @@ def enviar_alerta_critica(error_id, usuario, modulo, mensaje_error, linea_codigo
         # Crear correo de alerta
         msg = MIMEMultipart()
         msg['From'] = 'ab6643881@gmail.com'  # Remitente fijo
-        msg['To'] = 'angelher@gmail.com'     # Destinatario fijo
+        msg['To'] = 'admin@iujo.edu'     # Destinatario administrador
         msg['Subject'] = f"⚠️ ALERTA CRÍTICA: Error detectado en SICADFOC [ID: #{error_id}]"
         
         # Cuerpo del correo
@@ -191,7 +191,7 @@ Centinela de Errores Automático
         server.send_message(msg)
         server.quit()
         
-        print(f"✅ Alerta crítica #{error_id} enviada a angelher@gmail.com")
+        print(f"✅ Alerta crítica #{error_id} enviada a admin@iujo.edu")
         return True
         
     except Exception as e:
@@ -430,6 +430,7 @@ def crear_tablas_sistema(engine):
                     contrasena VARCHAR(255) NOT NULL,
                     rol VARCHAR(20) DEFAULT 'estudiante',
                     activo BOOLEAN DEFAULT 1,
+                    correo_verificado BOOLEAN DEFAULT 0,
                     id_persona INTEGER,
                     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -512,13 +513,25 @@ def crear_tablas_sistema(engine):
                 )
             """))
             
+            # Crear tabla de tokens de confirmación
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tokens_confirmacion (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    token TEXT UNIQUE NOT NULL,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    usado INTEGER DEFAULT 0,
+                    fecha_uso TIMESTAMP NULL
+                )
+            """))
+            
             hash_pass = hashlib.sha256('admin123'.encode()).hexdigest()
             conn.execute(text("""
                 INSERT INTO usuario (login, email, contrasena, rol, activo)
                 VALUES (:login, :email, :contrasena, :rol, :activo)
             """), {
-                'login': 'angelher@gmail.com',
-                'email': 'angelher@gmail.com',
+                'login': 'admin@iujo.edu',
+                'email': 'admin@iujo.edu',
                 'contrasena': hash_pass,
                 'rol': 'administrador',
                 'activo': 1
@@ -526,6 +539,10 @@ def crear_tablas_sistema(engine):
             
             conn.commit()
             print("OK - Tablas creadas y usuario admin insertado")
+            
+            # Crear tabla de tokens de confirmación por separado
+            crear_tabla_tokens_confirmacion()
+            
             return True
     except Exception as e:
         print(f"ERROR creando tablas: {e}")
@@ -571,22 +588,340 @@ def listar_estudiantes():
         print(f"Error listando estudiantes: {e}")
         return pd.DataFrame()
 
+@decorador_logger
 def insertar_estudiante(datos):
+    """Inserta un nuevo estudiante con manejo robusto de errores"""
+    conn = None
     try:
-        with engine.connect() as conn:
-            if 'contrasena' in datos:
-                datos = datos.copy()
-                datos['contrasena'] = hashlib.sha256(datos['contrasena'].encode()).hexdigest()
+        # Validar datos mínimos requeridos
+        if not datos or 'login' not in datos or 'email' not in datos:
+            return False, "Datos incompletos: se requiere login y email"
+        
+        # Usar el motor global o uno proporcionado
+        conn_engine = globals().get('engine')
+        if conn_engine is None:
+            return False, "No hay conexión a la base de datos"
+        
+        conn = conn_engine.connect()
+        
+        # Preparar datos con hash de contraseña
+        datos_procesados = datos.copy()
+        if 'contrasena' in datos_procesados and datos_procesados['contrasena']:
+            datos_procesados['contrasena'] = hashlib.sha256(datos_procesados['contrasena'].encode()).hexdigest()
+        
+        # Verificar si ya existe el usuario
+        verificar = conn.execute(text('SELECT id FROM usuario WHERE login = :login OR email = :email'), 
+                              {'login': datos_procesados['login'], 'email': datos_procesados['email']})
+        existente = verificar.fetchone()
+        
+        if existente:
+            return False, f"El usuario con login '{datos_procesados['login']}' o email '{datos_procesados['email']}' ya existe"
+        
+        # Insertar nuevo usuario con todos los campos necesarios
+        query_insert = '''
+        INSERT INTO usuario (login, email, contrasena, rol, activo, correo_verificado)
+        VALUES (:login, :email, :contrasena, 'estudiante', 1, 0)
+        '''
+        
+        result = conn.execute(text(query_insert), datos_procesados)
+        conn.commit()
+        
+        if result.rowcount > 0:
+            print(f"OK - Estudiante insertado: {datos_procesados['login']}")
+            return True, f"Estudiante '{datos_procesados['login']}' insertado correctamente"
+        else:
+            return False, "No se pudo insertar el estudiante"
             
-            conn.execute(text("""
-                INSERT INTO usuario (login, email, contrasena, rol) 
-                VALUES (:login, :email, :contrasena, 'estudiante')
-            """), datos)
-            conn.commit()
-            return True
     except Exception as e:
-        print(f"Error insertando estudiante: {e}")
-        return False
+        error_msg = f"Error insertando estudiante: {str(e)}"
+        print(error_msg)
+        
+        # Registrar error en el sistema
+        try:
+            registrar_error_sistema(
+                usuario="sistema",
+                modulo="database.insertar_estudiante",
+                mensaje_error=str(e),
+                linea_codigo=None,
+                stack_trace=traceback.format_exc(),
+                nivel_error="ERROR",
+                engine=conn_engine
+            )
+        except:
+            pass
+        
+        # Manejar errores específicos de SQLite
+        if "UNIQUE constraint failed" in str(e):
+            if "login" in str(e):
+                return False, f"El login '{datos.get('login', '')}' ya está en uso"
+            elif "email" in str(e):
+                return False, f"El email '{datos.get('email', '')}' ya está registrado"
+        
+        return False, f"Error en la base de datos: {str(e)}"
+        
+    finally:
+        # Asegurar cierre de conexión
+        if conn is not None:
+            try:
+                conn.close()
+            except:
+                pass
+
+@decorador_logger
+def registrar_nuevo_usuario(email, cedula, rol='estudiante', engine=None):
+    """Registra un nuevo usuario con envío de correo de confirmación"""
+    conn = None
+    try:
+        # Validar datos mínimos
+        if not email or not cedula:
+            return {"success": False, "message": "Email y cédula son requeridos"}
+        
+        # Usar el motor global o uno proporcionado
+        conn_engine = engine if engine is not None else globals().get('engine')
+        if conn_engine is None:
+            return {"success": False, "message": "No hay conexión a la base de datos"}
+        
+        conn = conn_engine.connect()
+        
+        # Verificar si ya existe el usuario
+        verificar = conn.execute(text('SELECT id FROM usuario WHERE login = :email OR email = :email'), 
+                              {'email': email})
+        existente = verificar.fetchone()
+        
+        if existente:
+            return {"success": False, "message": f"El email '{email}' ya está registrado"}
+        
+        # Hashear la cédula como contraseña
+        hash_password = hashlib.sha256(cedula.encode()).hexdigest()
+        
+        # Insertar nuevo usuario con correo_verificado = False
+        query_insert = '''
+        INSERT INTO usuario (login, email, contrasena, rol, activo, correo_verificado)
+        VALUES (:login, :email, :contrasena, :rol, 1, 0)
+        '''
+        
+        result = conn.execute(text(query_insert), {
+            'login': email,
+            'email': email,
+            'contrasena': hash_password,
+            'rol': rol
+        })
+        conn.commit()
+        
+        if result.rowcount > 0:
+            print(f"OK - Usuario registrado: {email}")
+            
+            # Generar token de confirmación
+            token_confirmacion = hashlib.sha256(f"{email}_{datetime.now().isoformat()}".encode()).hexdigest()
+            
+            # Guardar token en tabla tokens_confirmacion
+            conn.execute(text('''
+                INSERT INTO tokens_confirmacion (email, token, fecha_creacion, usado)
+                VALUES (:email, :token, CURRENT_TIMESTAMP, 0)
+            '''), {
+                'email': email,
+                'token': token_confirmacion
+            })
+            conn.commit()
+            
+            # Enviar correo de confirmación
+            try:
+                # Obtener configuración de correo
+                config_correo = obtener_config_correo(conn_engine)
+                
+                if config_correo:
+                    # Construir URL de confirmación
+                    url_confirmacion = f"http://localhost:8501?confirmar={token_confirmacion}&email={email}"
+                    
+                    # Enviar correo usando la función existente
+                    from email.mime.text import MIMEText
+                    from email.mime.multipart import MIMEMultipart
+                    import smtplib
+                    from urllib.parse import quote_plus
+                    
+                    # Crear mensaje
+                    msg = MIMEMultipart()
+                    msg['From'] = 'ab6643881@gmail.com'
+                    msg['To'] = email
+                    msg['Subject'] = 'Confirmación de Cuenta - SICADFOC 2026'
+                    
+                    # Cuerpo del mensaje
+                    cuerpo = f"""
+                    <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+                        <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); color: white; padding: 30px; text-align: center;">
+                                <h1 style="margin: 0; font-size: 28px;">🎓 SICADFOC 2026</h1>
+                                <p style="margin: 10px 0 0 0; opacity: 0.9;">Sistema Integral de Control Académico y Docente</p>
+                            </div>
+                            
+                            <div style="padding: 40px 30px;">
+                                <h2 style="color: #1E293B; margin-bottom: 20px;">👋 ¡Bienvenido al Sistema!</h2>
+                                
+                                <p style="color: #475569; line-height: 1.6; margin-bottom: 25px;">
+                                    Usted ha ingresado al SICADFOC, por favor valide su correo de acceso para activar su cuenta.
+                                </p>
+                                
+                                <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                                    <h3 style="color: #1E293B; margin-top: 0;">📋 Datos de Acceso:</h3>
+                                    <p style="margin: 8px 0;"><strong>Usuario:</strong> {email}</p>
+                                    <p style="margin: 8px 0;"><strong>Contraseña:</strong> {cedula}</p>
+                                    <p style="margin: 8px 0;"><strong>Rol:</strong> {rol.title()}</p>
+                                </div>
+                                
+                                <div style="text-align: center; margin: 30px 0;">
+                                    <a href="{url_confirmacion}" 
+                                       style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); 
+                                              color: white; padding: 15px 30px; text-decoration: none; 
+                                              border-radius: 8px; font-weight: bold; display: inline-block;
+                                              box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
+                                        ✅ Confirmar Mi Cuenta
+                                    </a>
+                                </div>
+                                
+                                <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 30px;">
+                                    Si no puede hacer clic en el botón, copie y pegue este enlace en su navegador:<br>
+                                    <small style="word-break: break-all;">{url_confirmacion}</small>
+                                </p>
+                                
+                                <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin-top: 25px;">
+                                    <p style="margin: 0; color: #92400e; font-size: 14px;">
+                                        <strong>⚠️ Importante:</strong> Este enlace expirará en 24 horas. Si no confirma su cuenta en este tiempo, deberá registrarse nuevamente.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                                <p style="margin: 0; color: #64748b; font-size: 12px;">
+                                    Instituto Universitario Jesús Obrero - SICADFOC 2026<br>
+                                    Este es un mensaje automático, por favor no responda.
+                                </p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                    
+                    msg.attach(MIMEText(cuerpo, 'html'))
+                    
+                    # Enviar correo con manejo detallado de errores
+                    try:
+                        print(f"Intentando enviar correo a: {email}")
+                        print("Configurando conexión SMTP...")
+                        
+                        # Configurar conexión SMTP
+                        server = smtplib.SMTP('smtp.gmail.com', 587)
+                        server.set_debuglevel(1)  # Activar depuración SMTP
+                        
+                        print("Iniciando TLS...")
+                        server.starttls()
+                        
+                        print("Autenticando con Gmail...")
+                        server.login('ab6643881@gmail.com', 'nzxf ozxj vjye xjxz')  # Contraseña de Aplicación de 16 dígitos
+                        
+                        print("Enviando mensaje...")
+                        server.send_message(msg)
+                        server.quit()
+                        
+                        print(f"OK - Correo de confirmación enviado a: {email}")
+                        
+                        return {
+                            "success": True, 
+                            "message": f"Usuario '{email}' registrado correctamente. Correo de confirmación enviado.",
+                            "token": token_confirmacion
+                        }
+                        
+                    except smtplib.SMTPAuthenticationError as e:
+                        error_msg = f"Error de autenticación SMTP: {str(e)}"
+                        print(f"ERROR SMTP: {error_msg}")
+                        return {
+                            "success": True, 
+                            "message": f"Usuario '{email}' registrado correctamente, pero hubo error de autenticación SMTP.",
+                            "token": token_confirmacion,
+                            "smtp_error": error_msg
+                        }
+                        
+                    except smtplib.SMTPConnectError as e:
+                        error_msg = f"Error de conexión SMTP: {str(e)}"
+                        print(f"ERROR SMTP: {error_msg}")
+                        return {
+                            "success": True, 
+                            "message": f"Usuario '{email}' registrado correctamente, pero no se pudo conectar al servidor SMTP.",
+                            "token": token_confirmacion,
+                            "smtp_error": error_msg
+                        }
+                        
+                    except smtplib.SMTPException as e:
+                        error_msg = f"Error SMTP general: {str(e)}"
+                        print(f"ERROR SMTP: {error_msg}")
+                        return {
+                            "success": True, 
+                            "message": f"Usuario '{email}' registrado correctamente, pero ocurrió un error SMTP.",
+                            "token": token_confirmacion,
+                            "smtp_error": error_msg
+                        }
+                        
+                    except Exception as e:
+                        error_msg = f"Error general enviando correo: {str(e)}"
+                        print(f"ERROR GENERAL: {error_msg}")
+                        return {
+                            "success": True, 
+                            "message": f"Usuario '{email}' registrado correctamente, pero hubo un error enviando el correo.",
+                            "token": token_confirmacion,
+                            "smtp_error": error_msg
+                        }
+                    
+                else:
+                    return {
+                        "success": True, 
+                        "message": f"Usuario '{email}' registrado correctamente, pero no se pudo enviar correo de confirmación.",
+                        "token": token_confirmacion
+                    }
+                    
+            except Exception as e:
+                print(f"Error enviando correo: {e}")
+                return {
+                    "success": True, 
+                    "message": f"Usuario '{email}' registrado correctamente, pero hubo un error enviando el correo.",
+                    "token": token_confirmacion
+                }
+        else:
+            return {"success": False, "message": "No se pudo registrar el usuario"}
+            
+    except Exception as e:
+        error_msg = f"Error registrando usuario: {str(e)}"
+        print(error_msg)
+        
+        # Registrar error en el sistema
+        try:
+            registrar_error_sistema(
+                usuario="sistema",
+                modulo="database.registrar_nuevo_usuario",
+                mensaje_error=str(e),
+                linea_codigo=None,
+                stack_trace=traceback.format_exc(),
+                nivel_error="ERROR",
+                engine=conn_engine
+            )
+        except:
+            pass
+        
+        # Manejar errores específicos de SQLite
+        if "UNIQUE constraint failed" in str(e):
+            if "login" in str(e):
+                return {"success": False, "message": f"El email '{email}' ya está en uso"}
+            elif "email" in str(e):
+                return {"success": False, "message": f"El email '{email}' ya está registrado"}
+        
+        return {"success": False, "message": f"Error en la base de datos: {str(e)}"}
+        
+    finally:
+        # Asegurar cierre de conexión
+        if conn is not None:
+            try:
+                conn.close()
+            except:
+                pass
 
 def actualizar_estudiante(id_estudiante, datos):
     try:
@@ -742,27 +1077,64 @@ def obtener_config_correo():
 
 @decorador_logger
 def ejecutar_query(query, params=None, engine=None):
+    """Ejecuta consultas SQL con manejo robusto de errores y conexiones"""
+    conn = None
     try:
         # Usar el motor proporcionado o el motor global
         conn_engine = engine if engine is not None else globals().get('engine')
         if conn_engine is None:
-            print("ERROR: No se proporciono motor de conexion")
+            print("ERROR: No se proporcionó motor de conexión")
             return None
             
-        with conn_engine.connect() as conn:
-            if params:
-                result = conn.execute(text(query), params)
+        # Abrir conexión y ejecutar query
+        conn = conn_engine.connect()
+        
+        if params:
+            result = conn.execute(text(query), params)
+        else:
+            result = conn.execute(text(query))
+        
+        # Manejar diferentes tipos de consulta
+        if query.strip().upper().startswith('SELECT'):
+            # Para SELECT, retornar DataFrame
+            data = result.fetchall()
+            if data:
+                return pd.DataFrame(data, columns=result.keys())
             else:
-                result = conn.execute(text(query))
+                return pd.DataFrame()  # DataFrame vacío pero válido
+        else:
+            # Para INSERT, UPDATE, DELETE
+            conn.commit()
+            return {"affected": result.rowcount, "success": True}
             
-            if query.strip().upper().startswith('SELECT'):
-                return pd.DataFrame(result.fetchall(), columns=result.keys())
-            else:
-                conn.commit()
-                return {"affected": result.rowcount}
     except Exception as e:
-        print(f"Error ejecutando query: {e}")
-        return None
+        # Log detallado del error
+        error_msg = f"Error ejecutando query: {str(e)}\nQuery: {query[:200]}...\nParams: {params}"
+        print(error_msg)
+        
+        # Registrar en logs del sistema
+        try:
+            registrar_error_sistema(
+                usuario="sistema",
+                modulo="database.ejecutar_query",
+                mensaje_error=str(e),
+                linea_codigo=None,
+                stack_trace=traceback.format_exc(),
+                nivel_error="ERROR",
+                engine=conn_engine
+            )
+        except:
+            pass  # Evitar recursión infinita
+        
+        return {"success": False, "error": str(e), "affected": 0}
+        
+    finally:
+        # Asegurar cierre de conexión
+        if conn is not None:
+            try:
+                conn.close()
+            except:
+                pass
 
 @decorador_logger
 def insertar_estudiante(cedula, apellido, nombre, genero, telefono, carrera, semestre, engine=None):
@@ -882,8 +1254,34 @@ def limpiar_columnas_estudiantes():
         return False
 
 def asegurar_estructura_persona():
+    """Asegura que la tabla usuario tenga todas las columnas necesarias"""
     try:
         with engine.connect() as conn:
+            # Verificar si existe la columna correo_verificado
+            result = conn.execute(text("PRAGMA table_info(usuario)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            # Agregar columna correo_verificado si no existe
+            if 'correo_verificado' not in columns:
+                conn.execute(text("ALTER TABLE usuario ADD COLUMN correo_verificado BOOLEAN DEFAULT 0"))
+                print("OK - Columna correo_verificado agregada")
+            
+            # Agregar columna nombre si no existe (para compatibilidad)
+            if 'nombre' not in columns:
+                conn.execute(text("ALTER TABLE usuario ADD COLUMN nombre VARCHAR(200)"))
+                print("OK - Columna nombre agregada")
+            
+            # Agregar columna apellido si no existe (para compatibilidad)
+            if 'apellido' not in columns:
+                conn.execute(text("ALTER TABLE usuario ADD COLUMN apellido VARCHAR(200)"))
+                print("OK - Columna apellido agregada")
+            
+            # Agregar columna cedula si no existe (para compatibilidad)
+            if 'cedula' not in columns:
+                conn.execute(text("ALTER TABLE usuario ADD COLUMN cedula VARCHAR(20)"))
+                print("OK - Columna cedula agregada")
+            
+            conn.commit()
             return True
     except Exception as e:
         print(f"Error asegurando estructura persona: {e}")
@@ -919,6 +1317,40 @@ def generar_backup_sql():
     except Exception as e:
         print(f"Error generando backup: {e}")
         return {"status": "error", "message": str(e)}
+
+def crear_tabla_tokens_confirmacion():
+    """Crea la tabla tokens_confirmacion si no existe"""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            result = conn.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='tokens_confirmacion'
+            """))
+            tabla_existe = result.fetchone()
+            
+            if not tabla_existe:
+                # Crear la tabla
+                conn.execute(text("""
+                    CREATE TABLE tokens_confirmacion (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT NOT NULL,
+                        token TEXT UNIQUE NOT NULL,
+                        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        usado INTEGER DEFAULT 0,
+                        fecha_uso TIMESTAMP NULL
+                    )
+                """))
+                conn.commit()
+                print("OK - Tabla tokens_confirmacion creada")
+                return True
+            else:
+                print("OK - Tabla tokens_confirmacion ya existe")
+                return True
+                
+    except Exception as e:
+        print(f"Error creando tabla tokens_confirmacion: {e}")
+        return False
 
 def crear_tabla_configuracion_correo():
     """Crea la tabla de configuración de correo si no existe"""
@@ -1075,7 +1507,8 @@ def crear_tabla_logs_sistema(engine=None):
                 """))
                 
                 conn.commit()
-                print("Tabla logs_sistema creada exitosamente")
+                print("✅ Tabla logs_sistema creada correctamente")
+                return True
             else:
                 print("Tabla logs_sistema ya existe")
                 
@@ -1338,3 +1771,146 @@ def get_info_espejo():
     except Exception as e:
         print(f"Error info espejo: {e}")
         return {}
+
+# =================================================================
+# CONFIGURACIÓN FINAL DE CORREO SMTP
+# =================================================================
+
+def configurar_correo_final():
+    """Configura el servicio de correo SMTP con Gmail"""
+    try:
+        engine = globals()['engine']
+        
+        # Configuración final para Gmail
+        config_final = {
+            'servidor_smtp': 'smtp.gmail.com',
+            'puerto': 587,
+            'usuario': 'ab6643881@gmail.com',
+            'password_app': 'aquí_va_la_contraseña_de_16_dígitos',  # Reemplazar con la contraseña real
+            'remitente': 'ab6643881@gmail.com'
+        }
+        
+        # Guardar configuración
+        resultado = guardar_config_correo(
+            servidor=config_final['servidor_smtp'],
+            puerto=config_final['puerto'],
+            usuario=config_final['usuario'],
+            contrasena=config_final['password_app'],
+            remitente=config_final['remitente'],
+            usar_tls=True,
+            engine=engine
+        )
+        
+        if resultado:
+            print("✅ Configuración de correo establecida correctamente")
+            print(f"📧 Servidor: {config_final['servidor_smtp']}")
+            print(f"📧 Puerto: {config_final['puerto']}")
+            print(f"👤 Usuario: {config_final['usuario']}")
+            return True
+        else:
+            print("❌ Error guardando configuración de correo")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error configurando correo: {e}")
+        return False
+
+def probar_envio_correo(destinatario="ab6643881@gmail.com"):
+    """Función de prueba para enviar un correo de prueba"""
+    try:
+        engine = globals()['engine']
+        
+        # Obtener configuración de correo
+        config = obtener_config_correo(engine)
+        
+        if not config:
+            print("❌ No hay configuración de correo disponible")
+            return False, "No hay configuración de correo"
+        
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        print(f"📧 Enviando correo de prueba a: {destinatario}")
+        print(f"🔧 Usando servidor: {config['servidor_smtp']}:{config['puerto']}")
+        
+        # Crear mensaje de prueba
+        msg = MIMEMultipart()
+        msg['From'] = config['remitente']
+        msg['To'] = destinatario
+        msg['Subject'] = "🧪 PRUEBA - SICADFOC 2026 - Envío de Correo"
+        
+        # Cuerpo del mensaje
+        cuerpo = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); color: white; padding: 30px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 28px;">🎓 SICADFOC 2026</h1>
+                    <p style="margin: 10px 0 0 0; opacity: 0.9;">Prueba de Servicio de Correo</p>
+                </div>
+                
+                <div style="padding: 40px 30px;">
+                    <h2 style="color: #1E293B; margin-bottom: 20px;">📧 Prueba Exitosa</h2>
+                    
+                    <p style="color: #475569; line-height: 1.6; margin-bottom: 25px;">
+                        El servicio de envío de correos de SICADFOC 2026 está funcionando correctamente.
+                    </p>
+                    
+                    <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+                        <h3 style="color: #1E293B; margin-top: 0;">📋 Detalles de la Prueba:</h3>
+                        <p style="margin: 8px 0;"><strong>Servidor SMTP:</strong> {config['servidor_smtp']}</p>
+                        <p style="margin: 8px 0;"><strong>Puerto:</strong> {config['puerto']}</p>
+                        <p style="margin: 8px 0;"><strong>Usuario:</strong> {config['usuario']}</p>
+                        <p style="margin: 8px 0;"><strong>Remitente:</strong> {config['remitente']}</p>
+                        <p style="margin: 8px 0;"><strong>Fecha/Hora:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <p style="color: #10b981; font-size: 18px; font-weight: bold; margin: 0;">
+                            ✅ Sistema de correo configurado correctamente
+                        </p>
+                    </div>
+                </div>
+                
+                <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="margin: 0; color: #64748b; font-size: 12px;">
+                        Instituto Universitario Jesús Obrero - SICADFOC 2026<br>
+                        Este es un mensaje automático de prueba, por favor No responda.
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(cuerpo, 'html'))
+        
+        # Conectar y enviar
+        server = smtplib.SMTP(config['servidor_smtp'], config['puerto'])
+        server.starttls()  # Usar TLS
+        server.login(config['usuario'], config['password_app'])
+        
+        text = msg.as_string()
+        server.sendmail(config['remitente'], destinatario, text)
+        server.quit()
+        
+        print("✅ Correo de prueba enviado exitosamente")
+        return True, "Correo de prueba enviado exitosamente"
+        
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = f"❌ Error de autenticación SMTP: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+    except smtplib.SMTPConnectError as e:
+        error_msg = f"❌ Error de conexión SMTP: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+    except smtplib.SMTPException as e:
+        error_msg = f"❌ Error SMTP: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"❌ Error general enviando correo: {str(e)}"
+        print(error_msg)
+        return False, error_msg
