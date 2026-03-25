@@ -24,6 +24,111 @@ engine_local = None
 engine_espejo = None
 
 # =================================================================
+# FUNCIÓN DE REGISTRO DE USUARIO CON MAPEO DE PERFILES
+# =================================================================
+
+def finalizar_registro_usuario(datos_usuario, rol_id):
+    """
+    Inserta un nuevo usuario en la base de datos PostgreSQL vinculando con rol_id
+    
+    Args:
+        datos_usuario (dict): Diccionario con datos del usuario
+        rol_id (int): ID del rol (Profesor=2, Estudiante=3)
+    
+    Returns:
+        dict: Resultado de la operación con éxito/error
+    """
+    try:
+        engine = get_engine_local()
+        
+        # Mapeo de permisos según rol_id
+        permisos_map = {
+            2: "gestion_pdf,auditoria,consulta",  # Profesor
+            3: "consulta",                        # Estudiante
+            1: "todos"                            # Administrador (por si acaso)
+        }
+        
+        # Hash de la contraseña
+        password_hash = hashlib.sha256(datos_usuario['password'].encode()).hexdigest()
+        
+        with engine.connect() as conn:
+            # Verificar si el correo ya existe
+            query_check = "SELECT COUNT(*) FROM usuario WHERE email = :email"
+            result = conn.execute(text(query_check), {'email': datos_usuario['email']})
+            email_exists = result.scalar() > 0
+            
+            if email_exists:
+                return {
+                    'exito': False,
+                    'mensaje': 'Este correo electrónico ya está registrado. Use otro correo o recupere su cuenta.',
+                    'codigo': 'EMAIL_EXISTS'
+                }
+            
+            # Insertar en persona
+            query_persona = """
+                INSERT INTO persona (nombre, apellido, cedula, email)
+                VALUES (:nombre, :apellido, :cedula, :email)
+            """
+            conn.execute(text(query_persona), {
+                'nombre': datos_usuario['nombres'],
+                'apellido': datos_usuario['apellidos'],
+                'cedula': datos_usuario['cedula'],
+                'email': datos_usuario['email']
+            })
+            
+            # Obtener el ID de la persona insertada
+            if 'postgresql' in str(engine.url).lower():
+                query_id = "SELECT currval('persona_id_persona_seq')"
+            else:
+                query_id = "SELECT last_insert_rowid()"
+            
+            result = conn.execute(text(query_id))
+            id_persona = result.scalar()
+            
+            # Insertar en usuario con permisos y rol_id
+            query_usuario = """
+                INSERT INTO usuario (login, email, contrasena, rol, activo, id_persona, permisos, rol_id)
+                VALUES (:login, :email, :contrasena, :rol, :activo, :id_persona, :permisos, :rol_id)
+            """
+            conn.execute(text(query_usuario), {
+                'login': datos_usuario['email'],
+                'email': datos_usuario['email'],
+                'contrasena': password_hash,
+                'rol': datos_usuario['rol'].lower(),
+                'activo': False,
+                'id_persona': id_persona,
+                'permisos': permisos_map.get(rol_id, 'consulta'),
+                'rol_id': rol_id
+            })
+            
+            conn.commit()
+            
+            return {
+                'exito': True,
+                'mensaje': 'Cuenta creada exitosamente',
+                'id_persona': id_persona,
+                'rol_asignado': datos_usuario['rol'],
+                'permisos': permisos_map.get(rol_id, 'consulta'),
+                'rol_id': rol_id
+            }
+            
+    except Exception as e:
+        error_msg = f"Error al crear cuenta: {str(e)}"
+        registrar_error_sistema(
+            usuario=datos_usuario.get('email', 'desconocido'),
+            modulo='finalizar_registro_usuario',
+            mensaje_error=error_msg,
+            stack_trace=traceback.format_exc(),
+            engine=engine
+        )
+        
+        return {
+            'exito': False,
+            'mensaje': error_msg,
+            'codigo': 'DB_ERROR'
+        }
+
+# =================================================================
 # SISTEMA DE LOGGING Y DECORADOR DE ERRORES
 # =================================================================
 
@@ -428,11 +533,14 @@ def crear_tablas_sistema(engine):
                     login VARCHAR(100) UNIQUE NOT NULL,
                     email VARCHAR(255) UNIQUE,
                     contrasena VARCHAR(255) NOT NULL,
+                    password TEXT,
                     rol VARCHAR(20) DEFAULT 'estudiante',
                     activo BOOLEAN DEFAULT 1,
                     correo_verificado BOOLEAN DEFAULT 0,
                     id_persona INTEGER,
-                    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+                    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    permisos TEXT,
+                    rol_id INTEGER
                 )
             """))
             
@@ -540,6 +648,58 @@ def crear_tablas_sistema(engine):
             conn.commit()
             print("OK - Tablas creadas y usuario admin insertado")
             
+            # MIGRACIÓN AUTOMÁTICA: Asegurar columnas necesarias en tablas
+            try:
+                # Verificar tabla persona
+                result = conn.execute(text("""
+                    PRAGMA table_info(persona)
+                """))
+                persona_columns = [row[1] for row in result.fetchall()]
+                
+                if 'email' not in persona_columns:
+                    print("MIGRACIÓN: Agregando columna email a tabla persona...")
+                    conn.execute(text("""
+                        ALTER TABLE persona ADD COLUMN email TEXT
+                    """))
+                    conn.commit()
+                    print("MIGRACIÓN: Columna email agregada a persona")
+                
+                # Verificar tabla usuario
+                result = conn.execute(text("""
+                    PRAGMA table_info(usuario)
+                """))
+                usuario_columns = [row[1] for row in result.fetchall()]
+                
+                # Agregar columnas faltantes a usuario
+                if 'password' not in usuario_columns:
+                    print("MIGRACIÓN: Agregando columna password a tabla usuario...")
+                    conn.execute(text("""
+                        ALTER TABLE usuario ADD COLUMN password TEXT
+                    """))
+                    conn.commit()
+                    print("MIGRACIÓN: Columna password agregada a usuario")
+                
+                if 'permisos' not in usuario_columns:
+                    print("MIGRACIÓN: Agregando columna permisos a tabla usuario...")
+                    conn.execute(text("""
+                        ALTER TABLE usuario ADD COLUMN permisos TEXT
+                    """))
+                    conn.commit()
+                    print("MIGRACIÓN: Columna permisos agregada a usuario")
+                
+                if 'rol_id' not in usuario_columns:
+                    print("MIGRACIÓN: Agregando columna rol_id a tabla usuario...")
+                    conn.execute(text("""
+                        ALTER TABLE usuario ADD COLUMN rol_id INTEGER
+                    """))
+                    conn.commit()
+                    print("MIGRACIÓN: Columna rol_id agregada a usuario")
+                    
+                print("MIGRACIÓN: Todas las columnas necesarias verificadas")
+                    
+            except Exception as e:
+                print(f"Error en migración: {e}")
+            
             # Crear tabla de tokens de confirmación por separado
             crear_tabla_tokens_confirmacion()
             
@@ -578,6 +738,162 @@ def get_connection_info():
         "database": SQLITE_DB_PATH,
         "port": "0"
     }
+
+# =================================================================
+# TABLAS ADICIONALES - FORMACIÓN COMPLEMENTARIA
+# =================================================================
+
+def crear_tabla_documentos_pdf():
+    """Crea la tabla documentos_pdf si no existe"""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            result = conn.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='documentos_pdf'
+            """))
+            
+            if not result.fetchone():
+                # Crear tabla con todos los campos necesarios
+                conn.execute(text("""
+                    CREATE TABLE documentos_pdf (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nombre_curso VARCHAR(255) NOT NULL,
+                        institucion VARCHAR(255) NOT NULL,
+                        horas INTEGER NOT NULL,
+                        fecha DATE NOT NULL,
+                        categoria VARCHAR(50) NOT NULL,
+                        archivo_path VARCHAR(500),
+                        archivo_nombre VARCHAR(255),
+                        archivo_bytes BLOB,
+                        estudiante_id INTEGER,
+                        facilitador_id INTEGER,
+                        estado VARCHAR(50) DEFAULT 'Pendiente de Validación',
+                        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        fecha_validacion TIMESTAMP,
+                        validado_por VARCHAR(255),
+                        FOREIGN KEY (estudiante_id) REFERENCES usuario(id),
+                        FOREIGN KEY (facilitador_id) REFERENCES usuario(id)
+                    )
+                """))
+                conn.commit()
+                print("OK - Tabla documentos_pdf creada")
+        return True
+    except Exception as e:
+        print(f"Error creando tabla documentos_pdf: {e}")
+        return False
+
+def crear_tabla_archivos_registrados():
+    """Crea la tabla archivos_registrados si no existe"""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            result = conn.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='archivos_registrados'
+            """))
+            
+            if not result.fetchone():
+                # Crear tabla para gestión general de archivos
+                conn.execute(text("""
+                    CREATE TABLE archivos_registrados (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nombre_archivo VARCHAR(255) NOT NULL,
+                        ruta_archivo VARCHAR(500),
+                        tipo_documento VARCHAR(100) NOT NULL,
+                        descripcion TEXT,
+                        usuario_id INTEGER NOT NULL,
+                        fecha_subida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        metadata TEXT,
+                        FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+                    )
+                """))
+                conn.commit()
+                print("OK - Tabla archivos_registrados creada")
+        return True
+    except Exception as e:
+        print(f"Error creando tabla archivos_registrados: {e}")
+        return False
+
+def crear_tabla_archivos_blob():
+    """Crea la tabla archivos_blob si no existe"""
+    try:
+        with engine.connect() as conn:
+            # Verificar si la tabla existe
+            result = conn.execute(text("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='archivos_blob'
+            """))
+            
+            if not result.fetchone():
+                # Crear tabla para almacenamiento en BLOB
+                conn.execute(text("""
+                    CREATE TABLE archivos_blob (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nombre_archivo VARCHAR(255) NOT NULL,
+                        tipo_documento VARCHAR(100) NOT NULL,
+                        descripcion TEXT,
+                        archivo_bytes BLOB,
+                        usuario_id INTEGER NOT NULL,
+                        fecha_subida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+                    )
+                """))
+                conn.commit()
+                print("OK - Tabla archivos_blob creada")
+        return True
+    except Exception as e:
+        print(f"Error creando tabla archivos_blob: {e}")
+        return False
+
+def inicializar_tablas_formacion():
+    """Inicializa todas las tablas necesarias para formación complementaria"""
+    print("Iniciando tablas de formación complementaria...")
+    
+    tablas_creadas = []
+    
+    # Crear cada tabla
+    if crear_tabla_documentos_pdf():
+        tablas_creadas.append("documentos_pdf")
+    
+    if crear_tabla_archivos_registrados():
+        tablas_creadas.append("archivos_registrados")
+    
+    if crear_tabla_archivos_blob():
+        tablas_creadas.append("archivos_blob")
+    
+    print(f"Tablas creadas: {', '.join(tablas_creadas)}")
+    return len(tablas_creadas) == 3
+
+def consultar_usuario_por_cedula(cedula):
+    """Consulta un usuario por su cédula con depuración"""
+    try:
+        with engine.connect() as conn:
+            query = """
+                SELECT p.id_persona, p.nombre, p.apellido, p.cedula, p.email as email_persona,
+                       u.id as usuario_id, u.login, u.email as email_usuario, u.rol, u.activo
+                FROM persona p
+                LEFT JOIN usuario u ON p.id_persona = u.id_persona
+                WHERE p.cedula = ?
+            """
+            
+            result = conn.execute(text(query), (cedula.strip(),))
+            
+            # Obtener nombres de columnas
+            column_names = list(result.keys())
+            
+            # Obtener la fila
+            row = result.fetchone()
+            
+            if row:
+                # Convertir a diccionario usando los nombres de columnas
+                usuario_dict = dict(zip(column_names, row))
+                return usuario_dict
+            else:
+                return None
+                
+    except Exception as e:
+        return None
 
 def listar_estudiantes():
     try:
@@ -1824,41 +2140,41 @@ def probar_envio_correo(destinatario="ab6643881@gmail.com"):
         config = obtener_config_correo(engine)
         
         if not config:
-            print("❌ No hay configuración de correo disponible")
-            return False, "No hay configuración de correo"
+            print("No hay configuracion de correo disponible")
+            return False, "No hay configuracion de correo"
         
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
         
-        print(f"📧 Enviando correo de prueba a: {destinatario}")
-        print(f"🔧 Usando servidor: {config['servidor_smtp']}:{config['puerto']}")
+        print(f"Enviando correo de prueba a: {destinatario}")
+        print(f"Usando servidor: {config['servidor_smtp']}:{config['puerto']}")
         
         # Crear mensaje de prueba
         msg = MIMEMultipart()
         msg['From'] = config['remitente']
         msg['To'] = destinatario
-        msg['Subject'] = "🧪 PRUEBA - SICADFOC 2026 - Envío de Correo"
+        msg['Subject'] = "PRUEBA - SICADFOC 2026 - Envio de Correo"
         
-        # Cuerpo del mensaje
+        # Cuerpo del mensaje simplificado
         cuerpo = f"""
         <html>
         <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
             <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                 <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); color: white; padding: 30px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 28px;">🎓 SICADFOC 2026</h1>
+                    <h1 style="margin: 0; font-size: 28px;">SICADFOC 2026</h1>
                     <p style="margin: 10px 0 0 0; opacity: 0.9;">Prueba de Servicio de Correo</p>
                 </div>
                 
                 <div style="padding: 40px 30px;">
-                    <h2 style="color: #1E293B; margin-bottom: 20px;">📧 Prueba Exitosa</h2>
+                    <h2 style="color: #1E293B; margin-bottom: 20px;">Prueba Exitosa</h2>
                     
                     <p style="color: #475569; line-height: 1.6; margin-bottom: 25px;">
-                        El servicio de envío de correos de SICADFOC 2026 está funcionando correctamente.
+                        El servicio de envio de correos de SICADFOC 2026 esta funcionando correctamente.
                     </p>
                     
                     <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
-                        <h3 style="color: #1E293B; margin-top: 0;">📋 Detalles de la Prueba:</h3>
+                        <h3 style="color: #1E293B; margin-top: 0;">Detalles de la Prueba:</h3>
                         <p style="margin: 8px 0;"><strong>Servidor SMTP:</strong> {config['servidor_smtp']}</p>
                         <p style="margin: 8px 0;"><strong>Puerto:</strong> {config['puerto']}</p>
                         <p style="margin: 8px 0;"><strong>Usuario:</strong> {config['usuario']}</p>
@@ -1868,15 +2184,15 @@ def probar_envio_correo(destinatario="ab6643881@gmail.com"):
                     
                     <div style="text-align: center; margin: 30px 0;">
                         <p style="color: #10b981; font-size: 18px; font-weight: bold; margin: 0;">
-                            ✅ Sistema de correo configurado correctamente
+                            Sistema de correo configurado correctamente
                         </p>
                     </div>
                 </div>
                 
                 <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
                     <p style="margin: 0; color: #64748b; font-size: 12px;">
-                        Instituto Universitario Jesús Obrero - SICADFOC 2026<br>
-                        Este es un mensaje automático de prueba, por favor No responda.
+                        Instituto Universitario Jesus Obrero - SICADFOC 2026<br>
+                        Este es un mensaje automatico de prueba, por favor No responda.
                     </p>
                 </div>
             </div>
@@ -1895,22 +2211,22 @@ def probar_envio_correo(destinatario="ab6643881@gmail.com"):
         server.sendmail(config['remitente'], destinatario, text)
         server.quit()
         
-        print("✅ Correo de prueba enviado exitosamente")
+        print("Correo de prueba enviado exitosamente")
         return True, "Correo de prueba enviado exitosamente"
         
     except smtplib.SMTPAuthenticationError as e:
-        error_msg = f"❌ Error de autenticación SMTP: {str(e)}"
+        error_msg = f"Error de autenticacion SMTP: {str(e)}"
         print(error_msg)
         return False, error_msg
     except smtplib.SMTPConnectError as e:
-        error_msg = f"❌ Error de conexión SMTP: {str(e)}"
+        error_msg = f"Error de conexion SMTP: {str(e)}"
         print(error_msg)
         return False, error_msg
     except smtplib.SMTPException as e:
-        error_msg = f"❌ Error SMTP: {str(e)}"
+        error_msg = f"Error SMTP: {str(e)}"
         print(error_msg)
         return False, error_msg
     except Exception as e:
-        error_msg = f"❌ Error general enviando correo: {str(e)}"
+        error_msg = f"Error general enviando correo: {str(e)}"
         print(error_msg)
         return False, error_msg
