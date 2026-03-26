@@ -12,24 +12,38 @@ import database
 from database import ejecutar_query, crear_tablas_sistema, crear_usuario_prueba, obtener_logs_sistema
 from database import engine, get_engine_local, get_engine_espejo, configurar_correo_final, probar_envio_correo
 import re
+
 # Importar componentes de UI protegidos
 from ui_components import mostrar_dashboard_protegido
 
+# Importar configuración de producción
+try:
+    import production_config
+    production_config.configure_production()
+except ImportError:
+    pass
+
 # =================================================================
-# PASO 1: CSS GLOBAL SICADFOC - ESTILO CONSISTENTE
+# CARGAR CSS EXTERNO
+# =================================================================
+def load_css(filename):
+    """Cargar archivo CSS externo"""
+    with open(filename, "r", encoding="utf-8") as f:
+        return f"<style>{f.read()}</style>"
+
+# Cargar CSS de diseños
+try:
+    css_content = load_css("diseños_streamlit.css")
+    st.markdown(css_content, unsafe_allow_html=True)
+except FileNotFoundError:
+    st.warning("⚠️ Archivo CSS no encontrado. Algunos estilos pueden no aplicarse.")
+
+# =================================================================
+# CSS LIMPIO Y MODULAR PARA SICADFOC
 # =================================================================
 st.markdown("""
 <style>
-    /* Fondo institucional con overlay oscuro - tamaño reducido */
-    .stApp {
-        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
-                    url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==') no-repeat center center fixed;
-        background-size: 80% !important;
-        background-attachment: fixed;
-        background-position: center center !important;
-    }
-    
-    /* Contenedor principal con márgenes ajustados */
+    /* Contenedor principal limpio */
     .main .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
@@ -38,67 +52,27 @@ st.markdown("""
     
     /* Estilo consistente para cuadros/cards SICADFOC */
     .sicadfoc-card {
-        background: #1E1E2F !important;
-        border: 1px solid #2D2D44 !important;
+        background: #ffffff !important;
+        border: 1px solid #e5e7eb !important;
         border-radius: 12px !important;
         padding: 1.5rem !important;
         margin: 1rem 0 !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
     }
     
-    /* Reduce la altura del cuadro INICIAR SESIÓN en 30% */
-    .stMarkdown > div > div > h3 {
-        font-size: 0.77rem !important;
-        margin-bottom: 0.35rem !important;
-        margin-top: 0.35rem !important;
-    }
-    
-    /* Reduce el gap entre inputs de Correo y Cédula */
-    div[data-testid="stVerticalBlock"] > div[style*="gap"] {
-        gap: 0.3rem !important;
-    }
-    
-    /* Botón INGRESAR AL SISTEMA más delgado y subido 200px */
+    /* Botones modernos */
     .stButton > button {
-        height: 2.2rem !important;
-        padding: 0.4rem 1rem !important;
-        margin-top: 0.2rem !important;
-        margin-bottom: 0.2rem !important;
+        height: 2.5rem !important;
+        padding: 0.5rem 1.5rem !important;
+        margin: 0.5rem 0 !important;
         font-size: 0.9rem !important;
-        transform: translateY(-200px) !important;
+        border-radius: 8px !important;
+        transition: all 0.2s ease !important;
     }
     
-    /* Compactar el bloque vertical que contiene los elementos del login */
-    div[data-testid="stVerticalBlock"] > div:has(div.stButton) {
-        gap: 0.3rem !important;
-    }
-    
-    /* Asegura que el contenedor de 'Iniciar Sesión' esté subido */
-    .stContainer {
-        margin-top: -50px !important;
-        padding: 0.8rem !important;
-    }
-    
-    /* Cuadros blancos con margin-top reducido para subir botón */
-    .login-form {
-        margin-top: -3rem !important;
-    }
-    
-    /* Reducir padding de formularios */
-    .stForm {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    
-    /* Reducir tamaño de inputs */
-    .stTextInput > div > div > input {
-        padding: 0.4rem !important;
-        margin: 0.1rem 0 !important;
-    }
-    
-    /* Reducir márgenes de columnas */
-    .stColumn {
-        padding: 0.2rem !important;
+    .stButton > button:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -125,26 +99,9 @@ except Exception as e:
 # FUNCIÓN DE REGISTRO LIMPIO
 # =================================================================
 def mostrar_registro():
-    """Limpia todo el layout actual y aplica el CSS de fondo oscuro (#1E1E2F)"""
-    # Limpiar completamente la pantalla
-    st.empty()
-    
-    # Aplicar CSS de fondo oscuro
-    st.markdown("""
-    <style>
-    .stApp {
-        background: #1E1E2F !important;
-        background-image: none !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Mostrar mensaje de éxito
-    st.success("✅ Validación exitosa. Redirigiendo al formulario de registro...")
-    time.sleep(1)
-    
-    # Llamar al formulario de registro
-    mostrar_formulario_registro()
+    """Cambia el estado a REGISTRO y ejecuta rerun para transición limpia"""
+    st.session_state.pagina_actual = 'REGISTRO'
+    st.rerun()
 
 # =================================================================
 # FUNCIONES DE CAPTCHA MATEMÁTICO
@@ -297,12 +254,10 @@ def mostrar_login():
     
     # Formulario de login
     with st.form("login_form"):
-        # Contenedor del formulario
+        # Contenedor del formulario limpio
         st.markdown("""
-        <div class="login-form" style="background: rgba(255, 255, 255, 0.95); padding: 1rem; border-radius: 15px; 
-                    border: 1px solid rgba(255, 255, 255, 0.3); margin-top: -0.5rem;
-                    backdrop-filter: blur(10px);">
-            <h3 style="color: #1E293B; text-align: center; margin-bottom: 0.5rem; font-size: 1.1rem;">
+        <div class="sicadfoc-card">
+            <h3 style="color: #1E293B; text-align: center; margin-bottom: 1rem;">
                 🔐 INICIAR SESIÓN
             </h3>
         </div>
@@ -398,13 +353,14 @@ def mostrar_login():
                         hash_password = hashlib.sha256(p.encode()).hexdigest()
                         
                         query_auth = """
-                            SELECT id, login, email, rol, activo, correo_verificado, nombre, apellido
-                            FROM usuario 
-                            WHERE (login = ? OR email = ?) AND password = ?
+                            SELECT u.id, u.login, u.email, u.rol, u.activo, u.correo_verificado, p.nombre, p.apellido
+                            FROM usuario u
+                            LEFT JOIN persona p ON u.id_persona = p.id_persona
+                            WHERE (u.login = :email OR u.email = :email) AND u.contrasena = :password
                         """
                         
                         with engine.connect() as conn:
-                            result = conn.execute(text(query_auth), (u, u, hash_password)).fetchone()
+                            result = conn.execute(text(query_auth), {'email': u, 'password': hash_password}).fetchone()
                             
                             if result:
                                 user_data = {
@@ -467,7 +423,7 @@ def mostrar_login():
                 st.stop()
 
 # =================================================================
-# FUNCIÓN MOSTRAR REGISTRO - LIMPIEZA TOTAL Y CSS FONDO OSCURO
+# FUNCIÓN MOSTRAR REGISTRO
 # =================================================================
 def mostrar_registro():
     """Cambia el estado a REGISTRO y ejecuta rerun para transición limpia"""
@@ -482,11 +438,11 @@ def mostrar_registro():
 # FUNCIÓN MOSTRAR CAPTCHA - VALIDACIÓN HUMANA
 # =================================================================
 def mostrar_captcha():
-    """Muestra la interfaz de captcha matemático con estilo SICADFOC"""
+    """Muestra la interfaz de captcha matemático con 3 bloques verticales puros"""
     # Obtener fondo institucional
     fondo_base64 = obtener_fondo_base64()
     
-    # CSS para página de captcha con fondo institucional
+    # CSS limpio para página de captcha
     if fondo_base64:
         fondo_css = f"url('data:image/png;base64,{fondo_base64}')"
     else:
@@ -495,35 +451,61 @@ def mostrar_captcha():
     st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
-                    {fondo_css} no-repeat center center fixed;
+        background: {fondo_css} no-repeat center center fixed;
         background-size: cover;
         background-attachment: fixed;
     }}
     
-    /* Contenedor principal con estilo SICADFOC */
-    .captcha-container {{
-        background: #1E1E2F !important;
-        border: 10px solid #2D2D44 !important;
-        border-radius: 10px !important;
-        padding: 2rem !important;
+    /* Contenedor principal - layout secuencial puro */
+    .captcha-main {{
+        display: flex !important;
+        flex-direction: column !important; /* Layout secuencial */
+        align-items: center !important;
         margin: auto !important;
+        margin-top: 20px !important;
         width: 90% !important;
         max-width: 600px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+        height: auto !important;
+        gap: 20px !important; /* Espacio entre bloques */
     }}
     
-    /* Títulos consistentes */
-    .sicadfoc-title {{
+    /* Bloque 1: Encabezado */
+    .captcha-header {{
+        text-align: center !important;
+        width: 100% !important;
+    }}
+    
+    .logo-captcha {{
+        text-align: center !important;
+        margin-bottom: 20px !important;
+        padding: 5px 20px 2px 20px !important;
+        background: transparent !important;
+    }}
+    
+    .captcha-title {{
         color: #F3F4F6 !important;
         font-size: 1.5rem !important;
         font-weight: 700 !important;
-        margin-bottom: 1.5rem !important;
+        text-align: center !important;
+        background: transparent !important;
+    }}
+    
+    /* Bloque 2: Cuerpo - Operación matemática */
+    .captcha-body {{
+        background: #1E1E2F !important;
+        border: 10px solid #2D2D44 !important;
+        border-radius: 10px !important;
+        padding: 30px !important; /* Padding generoso */
+        width: 100% !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
         text-align: center !important;
     }}
     
-    /* Contenedor de suma */
-    .suma-container {{
+    .captcha-operation {{
+        font-size: 2.5rem !important;
+        color: #FBBF24 !important;
+        font-weight: bold !important;
+        font-family: 'Arial', sans-serif !important;
         background: #2A2A3E !important;
         border: 1px solid #3D3D5C !important;
         border-radius: 8px !important;
@@ -532,35 +514,86 @@ def mostrar_captcha():
         align-items: center !important;
         justify-content: center !important;
         padding: 1.5rem !important;
-        margin: 1rem 0 !important;
+        width: 100% !important;
+        text-align: center !important;
+        margin-bottom: 20px !important;
+    }}
+    
+    /* Input centrado */
+    .stNumberInput > div > div {{
+        text-align: center !important;
+        margin: 0 auto !important;
+    }}
+    
+    /* Bloque 3: Pie - Botones */
+    .captcha-footer {{
+        display: flex !important;
+        justify-content: center !important;
+        gap: 15px !important;
+        width: 100% !important;
+        background: #1E1E2F !important;
+        border: 10px solid #2D2D44 !important;
+        border-radius: 10px !important;
+        padding: 20px !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+        position: relative !important;
+        z-index: auto !important;
+        top: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+    }}
+    
+    .captcha-footer button {{
+        position: relative !important;
+        z-index: auto !important;
+        top: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
     }}
     </style>
     """, unsafe_allow_html=True)
     
-    # Header institucional unificado
-    header_institucional()
+    # Logo de la institución
+    logo_base64 = obtener_logo_base64()
     
-    # Contenedor con estilo SICADFOC
-    st.markdown('<div class="captcha-container">', unsafe_allow_html=True)
+    if logo_base64:
+        st.markdown(f"""
+        <div class="logo-captcha">
+            <img src="data:image/png;base64,{logo_base64}" 
+                 alt="Logo IUJO" 
+                 style="width: 120px; height: auto; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));">
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Fallback si no hay logo
+        st.markdown("""
+        <div class="logo-captcha">
+            <h1 style="color: #F3F4F6; font-size: 1.2rem; font-weight: 700;">IUJO</h1>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Contenedor principal - layout secuencial
+    st.markdown('<div class="captcha-main">', unsafe_allow_html=True)
     
     # Input de captcha funcional y estético
     n1 = st.session_state.get('captcha_n1', 5)
     n2 = st.session_state.get('captcha_n2', 3)
     
-    # Título consistente
-    st.markdown('<div class="sicadfoc-title">🔢 Validación Humana</div>', unsafe_allow_html=True)
+    # Bloque 1: Encabezado
+    st.markdown('<div class="captcha-header">', unsafe_allow_html=True)
+    st.markdown('<div class="captcha-title">🔢 Validación Humana</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    with st.container():
-        st.markdown(f"""
-        <div class="suma-container">
-            <div style="font-family: 'Arial', sans-serif; font-size: 2.5rem; 
-                        font-weight: bold; color: #FBBF24; text-align: center;">
-                {n1} + {n2} = ?
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Campo de respuesta debajo de la suma
+    # Bloque 2: Cuerpo - Operación matemática
+    st.markdown('<div class="captcha-body">', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="captcha-operation">
+        {n1} + {n2} = ?
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Campo de respuesta centrado
     respuesta_usuario = st.number_input(
         "Ingrese el resultado:",
         step=1,
@@ -568,50 +601,50 @@ def mostrar_captcha():
         help="Resuelva la suma para continuar al registro"
     )
     
-    # Espacio adicional antes de los botones para bajarlos
-    st.markdown("<div style='margin-bottom: 50px;'></div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # Cerrar captcha-body
     
-    # Fila de botones completamente independiente
-    with st.container():
-        col_cancelar, col_verificar = st.columns([1, 1])
-        
-        with col_cancelar:
-            if st.button("❌ Cancelar", key="cancelar_captcha", use_container_width=True):
-                # Limpiar estados de captcha y volver a login
-                for key in ['captcha_valido', 'usuario_nuevo', 'captcha_answer', 'captcha_n1', 'captcha_n2', 'respuesta_captcha_input']:
+    # Bloque 3: Pie - Botones
+    st.markdown('<div class="captcha-footer">', unsafe_allow_html=True)
+    col_cancelar, col_verificar = st.columns([1, 1])
+    
+    with col_cancelar:
+        if st.button("❌ Cancelar", key="cancelar_captcha", use_container_width=True):
+            # Limpiar estados de captcha y volver a login
+            for key in ['captcha_valido', 'usuario_nuevo', 'captcha_answer', 'captcha_n1', 'captcha_n2', 'respuesta_captcha_input']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.session_state.pagina_actual = 'LOGIN'
+            st.rerun()
+    
+    with col_verificar:
+        if st.button("✅ Verificar y Registrarse", type="primary", use_container_width=True):
+            respuesta_correcta = st.session_state.get('captcha_answer', 0)
+            
+            if respuesta_usuario == respuesta_correcta:
+                # Validación matemática exitosa
+                st.session_state['captcha_valido'] = True
+                
+                # Ocultar el bloque del Captcha
+                for key in ['usuario_nuevo', 'captcha_answer', 'captcha_n1', 'captcha_n2', 'respuesta_captcha_input']:
                     if key in st.session_state:
                         del st.session_state[key]
-                st.session_state.pagina_actual = 'LOGIN'
-                st.rerun()
-        
-        with col_verificar:
-            if st.button("✅ Verificar y Registrarse", type="primary", use_container_width=True):
-                respuesta_correcta = st.session_state.get('captcha_answer', 0)
                 
-                if respuesta_usuario == respuesta_correcta:
-                    # Validación matemática exitosa
-                    st.session_state['captcha_valido'] = True
-                    
-                    # Ocultar el bloque del Captcha
-                    for key in ['usuario_nuevo', 'captcha_answer', 'captcha_n1', 'captcha_n2', 'respuesta_captcha_input']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    
-                    # Transición limpia: cambiar estado y rerun
-                    st.session_state.pagina_actual = 'REGISTRO'
-                    st.rerun()
-                else:
-                    st.error("❌ Respuesta incorrecta. Intente de nuevo.")
-                    # Regenerar captcha
-                    n1_new = random.randint(1, 10)
-                    n2_new = random.randint(1, 10)
-                    st.session_state['captcha_answer'] = n1_new + n2_new
-                    st.session_state['captcha_n1'] = n1_new
-                    st.session_state['captcha_n2'] = n2_new
-                    st.rerun()
+                # Transición limpia: cambiar estado y rerun
+                st.session_state.pagina_actual = 'REGISTRO'
+                st.rerun()
+            else:
+                st.error("❌ Respuesta incorrecta. Intente de nuevo.")
+                # Regenerar captcha
+                n1_new = random.randint(1, 10)
+                n2_new = random.randint(1, 10)
+                st.session_state['captcha_answer'] = n1_new + n2_new
+                st.session_state['captcha_n1'] = n1_new
+                st.session_state['captcha_n2'] = n2_new
+                st.rerun()
     
-    # Cerrar contenedor principal del captcha
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # Cerrar captcha-footer
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Cerrar captcha-main
     
     st.stop()  # Detener aquí hasta que se resuelva el captcha
 
@@ -623,7 +656,7 @@ def mostrar_formulario_registro():
     # Obtener imágenes en base64
     fondo_base64 = obtener_fondo_base64()
     
-    # CSS para página limpia de registro con fondo institucional completo
+    # CSS limpio para página de registro
     if fondo_base64:
         fondo_css = f"url('data:image/png;base64,{fondo_base64}')"
     else:
@@ -632,22 +665,21 @@ def mostrar_formulario_registro():
     st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
-                    {fondo_css} no-repeat center center fixed;
+        background: {fondo_css} no-repeat center center fixed;
         background-size: cover;
         background-attachment: fixed;
     }}
     
-    /* Contenedor principal con estilo SICADFOC - diseño adaptativo */
+    /* Contenedor principal limpio */
     .registro-container {{
-        background: #1E1E2F !important;
-        border: 10px solid #2D2D44 !important;
-        border-radius: 10px !important;
-        padding: 0.2rem 2rem !important;
+        background: #ffffff !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 12px !important;
+        padding: 2rem !important;
         margin: 0 auto !important;
         width: 90% !important;
         max-width: 800px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
     }}
     
     /* Títulos consistentes */

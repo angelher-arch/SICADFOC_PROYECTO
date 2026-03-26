@@ -54,18 +54,17 @@ def obtener_modulos_por_rol(rol):
 def mostrar_sidebar_protegido():
     """Muestra el menú lateral con navegación protegida y persistencia"""
     
-    # DEBUG: Mostrar módulos disponibles
+    # Obtener rol y módulos (lógica intacta)
     rol_usuario = st.session_state.get('rol', 'Desconocido')
     modulos_disponibles = obtener_modulos_por_rol(rol_usuario)
-    st.sidebar.write(f"🔍 DEBUG - Rol: {rol_usuario}")
-    st.sidebar.write(f"🔍 DEBUG - Módulos: {modulos_disponibles}")
     
-    # Sidebar header con estilo mejorado
+    # SECCIÓN SUPERIOR - Header
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🎓 SICADFOC 2026")
-    st.sidebar.markdown(f"**Usuario:** {st.session_state.user_data.get('nombre', 'Usuario')}")
-    st.sidebar.markdown(f"**Rol:** {rol_usuario.title()}")
     st.sidebar.markdown("---")
+    
+    # SECCIÓN SUPERIOR - Título de módulos
+    st.sidebar.markdown('<div style="margin-bottom: 20px;">### 📋 Módulos</div>', unsafe_allow_html=True)
     
     # Obtener módulo actual del session state (con persistencia)
     modulo_actual = st.session_state.get('modulo_actual', modulos_disponibles[0])
@@ -75,14 +74,15 @@ def mostrar_sidebar_protegido():
         modulo_actual = modulos_disponibles[0]
         st.session_state['modulo_actual'] = modulo_actual
     
-    # Crear botones de navegación individuales (lista de opciones, no desplegable)
-    st.sidebar.markdown("### 📋 Módulos")
-    
+    # Botones individuales verticales para cada módulo
     pagina_seleccionada = modulo_actual
     
     for modulo in modulos_disponibles:
         # Determinar si este módulo está activo
         is_active = (modulo == modulo_actual)
+        
+        # Agregar espaciado entre botones
+        st.sidebar.markdown('<div style="margin-bottom: 12px;"></div>', unsafe_allow_html=True)
         
         # Crear botón con estilo según estado
         if is_active:
@@ -97,11 +97,33 @@ def mostrar_sidebar_protegido():
                 st.session_state['mensaje_bienvenida'] = False
                 st.rerun()
     
-    # Botón de cerrar sesión al final del menú
+    # SECCIÓN CENTRO - Espacio para contenido principal con separación crítica
+    st.sidebar.markdown('<div style="margin-bottom: 30px;"></div>', unsafe_allow_html=True)
+    
+    # SECCIÓN INFERIOR - Usuario y botones con gap
     st.sidebar.markdown("---")
+    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+    
+    # Contenedor de usuario con gap
+    st.sidebar.markdown(f"**👤 Usuario:** {st.session_state.user_data.get('nombre', 'Usuario')}")
+    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown(f"**🏷️ Rol:** {rol_usuario.title()}")
+    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+    
+    # Botón de cambiar contraseña
+    if st.sidebar.button("🔑 Cambiar Contraseña", use_container_width=True):
+        st.session_state['mostrar_cambio_clave'] = True
+        st.rerun()
+    
+    st.sidebar.markdown('<div style="margin-bottom: 15px;"></div>', unsafe_allow_html=True)
+    
+    # Botón de cerrar sesión
     if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
         st.session_state.clear()
         st.rerun()
+    
+    # Padding bottom para no tocar el borde
+    st.sidebar.markdown('<div style="margin-bottom: 30px;"></div>', unsafe_allow_html=True)
     
     return pagina_seleccionada
 

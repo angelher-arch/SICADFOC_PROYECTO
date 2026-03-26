@@ -28,27 +28,15 @@ engine_espejo = None
 # =================================================================
 
 def finalizar_registro_usuario(datos_usuario, rol_id):
-    """
-    Inserta un nuevo usuario en la base de datos PostgreSQL vinculando con rol_id
-    
-    Args:
-        datos_usuario (dict): Diccionario con datos del usuario
-        rol_id (int): ID del rol (Profesor=2, Estudiante=3)
-    
-    Returns:
-        dict: Resultado de la operación con éxito/error
-    """
     try:
         engine = get_engine_local()
         
-        # Mapeo de permisos según rol_id
         permisos_map = {
-            2: "gestion_pdf,auditoria,consulta",  # Profesor
-            3: "consulta",                        # Estudiante
-            1: "todos"                            # Administrador (por si acaso)
+            2: "gestion_pdf,auditoria,consulta",
+            3: "consulta",
+            1: "todos"
         }
         
-        # Hash de la contraseña
         password_hash = hashlib.sha256(datos_usuario['password'].encode()).hexdigest()
         
         with engine.connect() as conn:
@@ -60,48 +48,59 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
             if email_exists:
                 return {
                     'exito': False,
-                    'mensaje': 'Este correo electrónico ya está registrado. Use otro correo o recupere su cuenta.',
+                    'mensaje': 'Este correo electrónico ya está registrado.',
                     'codigo': 'EMAIL_EXISTS'
                 }
             
-            # Insertar en persona
-            query_persona = """
-                INSERT INTO persona (nombre, apellido, cedula, email)
-                VALUES (:nombre, :apellido, :cedula, :email)
-            """
-            conn.execute(text(query_persona), {
-                'nombre': datos_usuario['nombres'],
-                'apellido': datos_usuario['apellidos'],
-                'cedula': datos_usuario['cedula'],
-                'email': datos_usuario['email']
-            })
+            # Buscar persona existente por cédula
+            query_persona = "SELECT id_persona FROM persona WHERE cedula = :cedula"
+            result = conn.execute(text(query_persona), {'cedula': datos_usuario['cedula']})
+            persona = result.fetchone()
             
-            # Obtener el ID de la persona insertada
-            if 'postgresql' in str(engine.url).lower():
-                query_id = "SELECT currval('persona_id_persona_seq')"
+            if persona:
+                id_persona = persona[0]
             else:
-                query_id = "SELECT last_insert_rowid()"
+                # Crear nueva persona solo si no existe
+                query_insert = """
+                    INSERT INTO persona (nombre, apellido, cedula, email)
+                    VALUES (:nombre, :apellido, :cedula, :email)
+                """
+                conn.execute(text(query_insert), {
+                    'nombre': datos_usuario['nombres'],
+                    'apellido': datos_usuario['apellidos'],
+                    'cedula': datos_usuario['cedula'],
+                    'email': datos_usuario['email']
+                })
+                
+                if 'postgresql' in str(engine.url).lower():
+                    query_id = "SELECT currval('persona_id_persona_seq')"
+                else:
+                    query_id = "SELECT last_insert_rowid()"
+                
+                result = conn.execute(text(query_id))
+                id_persona = result.scalar()
             
-            result = conn.execute(text(query_id))
-            id_persona = result.scalar()
-            
-            # Insertar en usuario con permisos y rol_id
+            # Insertar usuario con campos completos del prototipo
             query_usuario = """
-                INSERT INTO usuario (login, email, contrasena, rol, activo, id_persona, permisos, rol_id)
-                VALUES (:login, :email, :contrasena, :rol, :activo, :id_persona, :permisos, :rol_id)
+                INSERT INTO usuario (login, email, contrasena, rol, activo, id_persona, 
+                                     permisos, rol_id, perfil_id, estatus)
+                VALUES (:login, :email, :contrasena, :rol, :activo, :id_persona, 
+                        :permisos, :rol_id, :perfil_id, :estatus)
             """
             conn.execute(text(query_usuario), {
                 'login': datos_usuario['email'],
                 'email': datos_usuario['email'],
                 'contrasena': password_hash,
                 'rol': datos_usuario['rol'].lower(),
-                'activo': False,
+                'activo': True,  # CORREGIDO: True para acceso inmediato
                 'id_persona': id_persona,
                 'permisos': permisos_map.get(rol_id, 'consulta'),
-                'rol_id': rol_id
+                'rol_id': rol_id,
+                'perfil_id': rol_id,  # PERFIL_ID OPERATIVO
+                'estatus': 'Activo'    # ESTATUS ACTIVO POR DEFECTO
             })
             
-            conn.commit()
+            conn.commit()  # ASEGURADO: Commit explícito
             
             return {
                 'exito': True,
@@ -113,18 +112,9 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
             }
             
     except Exception as e:
-        error_msg = f"Error al crear cuenta: {str(e)}"
-        registrar_error_sistema(
-            usuario=datos_usuario.get('email', 'desconocido'),
-            modulo='finalizar_registro_usuario',
-            mensaje_error=error_msg,
-            stack_trace=traceback.format_exc(),
-            engine=engine
-        )
-        
         return {
             'exito': False,
-            'mensaje': error_msg,
+            'mensaje': f"Error al crear cuenta: {str(e)}",
             'codigo': 'DB_ERROR'
         }
 
