@@ -1,4 +1,4 @@
-import os
+﻿import os
 import pandas as pd
 import sqlite3
 import hashlib
@@ -40,10 +40,11 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
         password_hash = hashlib.sha256(datos_usuario['password'].encode()).hexdigest()
         
         with engine.connect() as conn:
-            # Verificar si el correo ya existe
-            query_check = "SELECT COUNT(*) FROM usuario WHERE email = :email"
-            result = conn.execute(text(query_check), {'email': datos_usuario['email']})
-            email_exists = result.scalar() > 0
+            # VERIFICACIÓN DE PERFIL ÚNICO - Caso de Prueba A/B
+            # 1. Verificar si el correo ya existe
+            query_check_email = "SELECT COUNT(*) FROM usuario WHERE email = :email"
+            result_email = conn.execute(text(query_check_email), {'email': datos_usuario['email']})
+            email_exists = result_email.scalar() > 0
             
             if email_exists:
                 return {
@@ -52,7 +53,23 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
                     'codigo': 'EMAIL_EXISTS'
                 }
             
-            # Buscar persona existente por cédula
+            # 2. VERIFICACIÓN DE CÉDULA ÚNICA - Perfil Único
+            query_check_cedula = """
+                SELECT COUNT(*) FROM persona p
+                LEFT JOIN usuario u ON p.id_persona = u.id_persona
+                WHERE p.cedula = :cedula
+            """
+            result_cedula = conn.execute(text(query_check_cedula), {'cedula': datos_usuario['cedula']})
+            cedula_exists = result_cedula.scalar() > 0
+            
+            if cedula_exists:
+                return {
+                    'exito': False,
+                    'mensaje': 'El número de cédula o correo ya está vinculado a una cuenta activa.',
+                    'codigo': 'CEDULA_EXISTS'
+                }
+            
+            # Buscar persona existente por cédula (redundante pero seguro)
             query_persona = "SELECT id_persona FROM persona WHERE cedula = :cedula"
             result = conn.execute(text(query_persona), {'cedula': datos_usuario['cedula']})
             persona = result.fetchone()
@@ -100,7 +117,7 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
                 'estatus': 'Activo'    # ESTATUS ACTIVO POR DEFECTO
             })
             
-            conn.commit()  # ASEGURADO: Commit explícito
+            conn.commit()  # ASEGURADO: Commit explícito para persistencia real
             
             return {
                 'exito': True,
@@ -108,15 +125,27 @@ def finalizar_registro_usuario(datos_usuario, rol_id):
                 'id_persona': id_persona,
                 'rol_asignado': datos_usuario['rol'],
                 'permisos': permisos_map.get(rol_id, 'consulta'),
-                'rol_id': rol_id
+                'rol_id': rol_id,
+                'perfil_id': rol_id,  # Incluir perfil_id en respuesta
+                'redirect_url': f"/{'estudiantes' if rol_id == 3 else 'profesores'}/inicio"  # Redirección por perfil
             }
             
     except Exception as e:
-        return {
-            'exito': False,
-            'mensaje': f"Error al crear cuenta: {str(e)}",
-            'codigo': 'DB_ERROR'
-        }
+        # MANEJO DE EXCEPCIONES - Unique Constraint Violation
+        error_str = str(e).lower()
+        
+        if 'unique constraint' in error_str or 'constraint violation' in error_str:
+            return {
+                'exito': False,
+                'mensaje': 'El número de cédula o correo ya está vinculado a una cuenta activa.',
+                'codigo': 'UNIQUE_CONSTRAINT_VIOLATION'
+            }
+        else:
+            return {
+                'exito': False,
+                'mensaje': f"Error al crear cuenta: {str(e)}",
+                'codigo': 'DB_ERROR'
+            }
 
 # =================================================================
 # SISTEMA DE LOGGING Y DECORADOR DE ERRORES

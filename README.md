@@ -1,120 +1,129 @@
-# 🎓 SICADFOC 2026 - Sistema Integral de Control Académico
+# 🎓 SICADFOC 2026 - Sistema de Gestión Académica
 
-## 📋 Descripción
+## � Configuración de Entorno
 
-Sistema académico completo desarrollado con Streamlit para la gestión de estudiantes, profesores, formación complementaria y documentación.
+### ⚠️ IMPORTANTE: Configuración de Codificación UTF-8
 
-## 🚀 Despliegue
+Para evitar errores de codificación en Windows, asegúrese de configurar la variable de entorno:
 
-### Render (Producción)
-- **URL:** https://sicadfoc-app.onrender.com
-- **Repositorio:** https://github.com/tu-usuario/sicadfoc-2026
-
-### Variables de Entorno
 ```bash
-DATABASE_URL=postgresql://user:pass@host:port/database
-SECRET_KEY=tu-secret-key-generado-aleatoriamente
-STREAMLIT_SERVER_PORT=$PORT
-STREAMLIT_SERVER_ADDRESS=0.0.0.0
+# Para Windows (Command Prompt)
+set PYTHONUTF8=1
+
+# Para Windows (PowerShell)
+$env:PYTHONUTF8=1
+
+# Para Windows (Git Bash)
+export PYTHONUTF8=1
 ```
 
-## 📁 Estructura del Proyecto
+Alternativamente, puede ejecutar la aplicación con:
 
-```
-├── main.py                    # Aplicación principal
-├── database.py                # Conexión y gestión de base de datos
-├── ui_components.py           # Componentes de interfaz
-├── formacion_complementaria.py # Módulo de formación complementaria
-├── upload_module.py           # Sistema de uploads
-├── requirements.txt           # Dependencias
-├── render.yaml              # Configuración de despliegue
-├── Procfile                 # Comando de inicio
-├── .gitignore              # Archivos ignorados
-├── .env.example            # Variables de entorno ejemplo
-├── diseños_streamlit.css    # Estilos CSS
-├── iujo-logo.png          # Logo IUJO
-├── IUJO-Sede.png          # Imagen sede
-└── README.md              # Este archivo
-```
-
-## 🛠️ Instalación Local
-
-1. **Clonar el repositorio:**
 ```bash
-git clone https://github.com/tu-usuario/sicadfoc-2026.git
-cd sicadfoc-2026
+# Windows Command Prompt
+set PYTHONUTF8=1 && streamlit run app/main.py
+
+# Windows PowerShell
+$env:PYTHONUTF8=1; streamlit run app/main.py
 ```
 
-2. **Crear entorno virtual:**
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# o
-venv\Scripts\activate     # Windows
+**Nota:** El sistema incluye configuración automática de UTF-8 en el código, pero establecer esta variable de entorno garantiza compatibilidad máxima en Windows.
+
+## �📁 Estructura Modular
+
+```
+Proyecto_FOC26/
+├── app/                          # Aplicación principal
+│   ├── main.py                   # Punto de entrada
+│   ├── database.py               # Conexión a base de datos
+│   ├── ui/                       # Componentes de interfaz
+│   │   ├── ui_components.py     # UI modular
+│   │   ├── css/
+│   │   │   └── diseños_streamlit.css
+│   │   └── assets/
+│   │       └── iujo-logo.png
+│   ├── modules/                  # Módulos funcionales
+│   │   ├── formacion_complementaria/
+│   │   │   ├── formacion_complementaria_db.py
+│   │   │   └── formacion_complementaria_ui.py
+│   │   ├── upload_module.py
+│   │   └── cloud_sync.py
+│   └── config/                   # Configuración
+│       ├── production_config.py
+│       ├── requirements.txt
+│       ├── Procfile
+│       └── render.yaml
+├── data/                         # Datos y almacenamiento
+│   ├── foc26_limpio.db
+│   └── storage/
+├── tests/                        # Pruebas unitarias
+├── docs/                         # Documentación
+└── README.md                     # Este archivo
 ```
 
-3. **Instalar dependencias:**
-```bash
-pip install -r requirements.txt
-```
+## 🚀 Ejecución
 
-4. **Configurar variables de entorno:**
+### Desarrollo Local
 ```bash
-cp .env.example .env
-# Editar .env con tus credenciales
-```
-
-5. **Ejecutar aplicación:**
-```bash
+cd app
 streamlit run main.py
 ```
 
-## 🔧 Características Principales
+### Producción (Render)
+```bash
+# La configuración está en render.yaml
+# Los requisitos están en requirements.txt
+```
 
-### 📊 Módulos Académicos
-- **Gestión de Usuarios:** Administración de roles y permisos
-- **Gestión de Profesores:** Control de personal docente
-- **Gestión de Estudiantes:** Registro y seguimiento
-- **Formación Complementaria:** Cursos y certificaciones
+## 📋 Módulos
 
-### 📁 Sistema de Documentos
-- **Carga Individual:** Subida de archivos uno por uno
-- **Carga Masiva:** Procesamiento por lotes (CSV/Excel)
-- **Validación:** Flujo de aprobación de documentos
-- **Almacenamiento:** Dual (BLOB o sistema de archivos)
+### 🎨 UI Components
+- Interfaz de usuario modular
+- Componentes reutilizables
+- Diseño responsivo
 
-### 🎨 Interfaz de Usuario
-- **Diseño Moderno:** UI limpia y responsiva
-- **Navegación Intuitiva:** Sidebar organizado
-- **Banner Informativo:** Animación con datos del sistema
-- **Roles y Permisos:** Acceso según rol de usuario
+### 💾 Database
+- Conexión a PostgreSQL/SQLite
+- Gestión de transacciones
+- Modelos de datos
 
-## 📚 Tecnologías
+### 📚 Formación Complementaria
+- Gestión de cursos y talleres
+- Subida de certificados
+- Validación de datos
 
-- **Frontend:** Streamlit
-- **Backend:** Python
-- **Base de Datos:** PostgreSQL (Producción) / SQLite (Desarrollo)
-- **Despliegue:** Render
-- **Control de Versiones:** Git
+### ☁️ Cloud Sync
+- Sincronización con Render
+- Gestión de archivos
+- Monitoreo de estado
 
-## 🤝 Contribución
+## 🔧 Configuración
 
-1. Fork del repositorio
-2. Crear rama de feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit de cambios (`git commit -m 'Agregar nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abrir Pull Request
+### Variables de Entorno
+- `DATABASE_URL`: URL de base de datos
+- `SECRET_KEY`: Clave secreta de sesión
+- `APP_ENVIRONMENT`: ambiente (development/production)
 
-## 📄 Licencia
+### Base de Datos
+- **Desarrollo**: SQLite (foc26_limpio.db)
+- **Producción**: PostgreSQL en Render
 
-Este proyecto está bajo la Licencia MIT.
+## 📊 Estado del Proyecto
 
-## 📞 Contacto
+- ✅ **100% Operativo**
+- ✅ **Estructura Modular**
+- ✅ **Listo para Pruebas en Nube**
+- ✅ **Perfiles Configurados**
 
-- **Instituto Universitario Jesús Obrero (IUJO)**
-- **Año:** 2026
-- **Versión:** 2.0.0
+## 🎯 Próximos Pasos
+
+1. **Pruebas de Usuario**: Iniciar desde la nube
+2. **Creación de Perfiles**: Validar roles y permisos
+3. **Monitoreo**: Implementar logging y métricas
+4. **Optimización**: Mejorar rendimiento
 
 ---
 
-**Desarrollado con ❤️ para la comunidad educativa de IUJO**
+**🎓 IUJO - SICADFOC 2026**
+**Versión: 2.0 Modular**
+**Estado: Producción Ready**

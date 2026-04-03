@@ -17,14 +17,14 @@ modulos_admin = [
     "👨‍🏫 Profesores",
     "👨‍🎓 Estudiantes",
     "📚 Formación Complementaria",
-    " Reportes",
+    "📊 Reportes",
     "⚙️ Configuración"
 ]
 
 # Módulos para Profesor
 modulos_profesor = [
     "📚 Formación Complementaria",
-    "�‍🎓 Estudiantes",
+    "👨‍🎓 Estudiantes",
     "📊 Reportes"
 ]
 
@@ -52,19 +52,132 @@ def obtener_modulos_por_rol(rol):
         return ["🏠 Dashboard Principal"]
 
 def mostrar_sidebar_protegido():
-    """Muestra el menú lateral con navegación protegida y persistencia"""
+    """Muestra el menú lateral con navegación protegida y estilo dark mode"""
+    
+    # CSS para sidebar con dark mode
+    st.sidebar.markdown("""
+    <style>
+    /* Sidebar Dark Mode */
+    .css-1lcbm8y {
+        background-color: rgba(30, 41, 59, 0.95) !important;
+        backdrop-filter: blur(10px);
+    }
+    
+    .css-1lcbm8y .stSelectbox {
+        background-color: rgba(51, 65, 85, 0.8) !important;
+        color: #f1f5f9 !important;
+        border: 1px solid #475569 !important;
+    }
+    
+    .css-1lcbm8y .stButton {
+        background-color: rgba(51, 65, 85, 0.8) !important;
+        color: #f1f5f9 !important;
+        border: 1px solid #475569 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .css-1lcbm8y .stButton:hover {
+        background-color: rgba(71, 85, 105, 0.9) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .css-1lcbm8y .stButton:active {
+        background-color: rgba(99, 102, 241, 0.8) !important;
+        transform: translateY(0px);
+    }
+    
+    /* Botón activo */
+    .css-1lcbm8y button[data-testid="stBaseButton-primary"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: 1px solid #667eea !important;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .css-1lcbm8y button[data-testid="stBaseButton-primary"]:hover {
+        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Texto del sidebar */
+    .css-1lcbm8y h1, .css-1lcbm8y h2, .css-1lcbm8y h3, 
+    .css-1lcbm8y h4, .css-1lcbm8y p, .css-1lcbm8y span {
+        color: #f1f5f9 !important;
+    }
+    
+    /* Separadores */
+    .css-1lcbm8y hr {
+        border-color: rgba(71, 85, 105, 0.3) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Obtener rol y módulos (lógica intacta)
     rol_usuario = st.session_state.get('rol', 'Desconocido')
     modulos_disponibles = obtener_modulos_por_rol(rol_usuario)
     
-    # SECCIÓN SUPERIOR - Header
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🎓 SICADFOC 2026")
-    st.sidebar.markdown("---")
+    # Header del sidebar con estilo institucional
+    st.sidebar.markdown("""
+    <div style="
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(51, 65, 85, 0.95) 100%);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+        text-align: center;
+    ">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+            <img src="app/logo_IUJO.png" alt="IUJO Logo" style="width: 50px; height: 50px; object-fit: contain;">
+            <h1 style="color: #f1f5f9; font-size: 1.5rem; font-weight: 700; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                IUJO
+            </h1>
+        </div>
+        <p style="color: #cbd5e1; font-size: 0.9rem; margin: 5px 0 0 0;">
+            Instituto Universitario Jesús Obrero
+        </p>
+        <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">
+            Sistema Integrado de Control Académico 2026
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # SECCIÓN SUPERIOR - Título de módulos
-    st.sidebar.markdown('<div style="margin-bottom: 20px;">### 📋 Módulos</div>', unsafe_allow_html=True)
+    # Información del usuario
+    st.sidebar.markdown("---")
+    user_data = st.session_state.get('user_data', {})
+    
+    # Tarjeta de información del usuario
+    st.sidebar.markdown(f"""
+    <div style="
+        background: rgba(51, 65, 85, 0.8);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(71, 85, 105, 0.3);
+    ">
+        <h3 style="color: #f1f5f9; margin: 0 0 10px 0; font-size: 1rem;">
+            👤 Información de Usuario
+        </h3>
+        <p style="color: #cbd5e1; margin: 5px 0;">
+            <strong style="color: #f1f5f9;">Nombre:</strong> {user_data.get('nombre', 'N/A')}
+        </p>
+        <p style="color: #cbd5e1; margin: 5px 0;">
+            <strong style="color: #f1f5f9;">Rol:</strong> <span style="color: #10b981;">{rol_usuario.title()}</span>
+        </p>
+        <p style="color: #cbd5e1; margin: 5px 0;">
+            <strong style="color: #f1f5f9;">Email:</strong> {user_data.get('email', 'N/A')}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Título de módulos
+    st.sidebar.markdown("""
+    <h3 style="color: #f1f5f9; margin: 20px 0 10px 0; font-size: 1rem;">
+        📋 Módulos Disponibles
+    </h3>
+    """, unsafe_allow_html=True)
     
     # Obtener módulo actual del session state (con persistencia)
     modulo_actual = st.session_state.get('modulo_actual', modulos_disponibles[0])
@@ -82,43 +195,101 @@ def mostrar_sidebar_protegido():
         is_active = (modulo == modulo_actual)
         
         # Agregar espaciado entre botones
-        st.sidebar.markdown('<div style="margin-bottom: 12px;"></div>', unsafe_allow_html=True)
+        st.sidebar.markdown('<div style="margin-bottom: 8px;"></div>', unsafe_allow_html=True)
         
         # Crear botón con estilo según estado
         if is_active:
-            # Botón activo (azul)
-            if st.sidebar.button(f"🔵 {modulo}", key=f"nav_{modulo}", use_container_width=True, help="Módulo actual"):
-                pagina_seleccionada = modulo
+            # Botón activo (azul institucional)
+            st.sidebar.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: center;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                transition: all 0.3s ease;
+                cursor: pointer;
+            ">
+                🔵 {modulo}
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            # Botón inactivo (gris)
-            if st.sidebar.button(f"⚪ {modulo}", key=f"nav_{modulo}", use_container_width=True, help=f"Ir a {modulo}"):
-                pagina_seleccionada = modulo
-                st.session_state['modulo_actual'] = modulo
-                st.session_state['mensaje_bienvenida'] = False
-                st.rerun()
+            # Botón inactivo (oscuro semitransparente) - HTML personalizado con funcionalidad
+            st.sidebar.markdown(f"""
+            <div style="
+                background: rgba(51, 65, 85, 0.6);
+                border: 1px solid rgba(71, 85, 105, 0.3);
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: center;
+                font-weight: 600;
+                color: #f1f5f9;
+                transition: all 0.3s ease;
+                cursor: pointer;
+                margin-bottom: 12px;
+            " onclick="window.location.href='?modulo={modulo.lower().replace(' ', '_').replace('👥', '').replace('👨‍🏫', '').replace('👨‍🎓', '').replace('📚', '').replace('📊', '').replace('⚙️', '').replace('🏠', '').strip()}'">
+                ⚪ {modulo}
+            </div>
+            """, unsafe_allow_html=True)
     
-    # SECCIÓN CENTRO - Espacio para contenido principal con separación crítica
-    st.sidebar.markdown('<div style="margin-bottom: 30px;"></div>', unsafe_allow_html=True)
+    # Separador final
+    st.sidebar.markdown("""
+    <div style="
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(71, 85, 105, 0.3);
+    "></div>
+    """, unsafe_allow_html=True)
     
-    # SECCIÓN INFERIOR - Usuario y botones con gap
-    st.sidebar.markdown("---")
-    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+    # Botón de cambiar contraseña con estilo dark
+    st.sidebar.markdown(f"""
+    <div style="
+        background: rgba(51, 65, 85, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.3);
+        border-radius: 8px;
+        padding: 12px 16px;
+        text-align: center;
+        font-weight: 600;
+        color: #f1f5f9;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        margin-bottom: 15px;
+    " onclick="window.location.href='#change_password'">
+        🔑 Cambiar Contraseña
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Contenedor de usuario con gap
-    st.sidebar.markdown(f"**👤 Usuario:** {st.session_state.user_data.get('nombre', 'Usuario')}")
-    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-    st.sidebar.markdown(f"**🏷️ Rol:** {rol_usuario.title()}")
-    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-    
-    # Botón de cambiar contraseña
-    if st.sidebar.button("🔑 Cambiar Contraseña", use_container_width=True):
+    # Botón oculto para la navegación real
+    if st.sidebar.button("change_password", key="change_password"):
         st.session_state['mostrar_cambio_clave'] = True
         st.rerun()
     
-    st.sidebar.markdown('<div style="margin-bottom: 15px;"></div>', unsafe_allow_html=True)
+    # Separador final
+    st.sidebar.markdown('<div style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
     
-    # Botón de cerrar sesión
-    if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
+    # Botón de cerrar sesión con estilo dark
+    st.sidebar.markdown(f"""
+    <div style="
+        background: rgba(239, 68, 68, 0.8);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 12px 16px;
+        text-align: center;
+        font-weight: 600;
+        color: white;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        margin-bottom: 15px;
+    " onclick="window.location.href='#logout'">
+        🚪 Cerrar Sesión
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Botón oculto para la navegación real
+    if st.sidebar.button("logout", key="logout"):
         st.session_state.clear()
         st.rerun()
     
@@ -165,8 +336,163 @@ def mostrar_dashboard_principal():
         st.write("• 5 archivos por validar")
         st.write("• 1 configuración pendiente")
 
+def mostrar_dashboard_protegido():
+    """Dashboard protegido con acceso a todos los módulos - Alias para mostrar_dashboard_principal"""
+    
+    # Verificar si el usuario está autenticado
+    if not st.session_state.get('autenticado', False):
+        st.error("❌ Debe iniciar sesión para acceder al dashboard")
+        st.stop()
+        return
+    
+    # Mostrar información del usuario
+    user_data = st.session_state.get('user_data', {})
+    rol_usuario = user_data.get('rol', 'Desconocido')
+    
+    st.markdown("## 🏠 Dashboard Principal")
+    st.markdown("---")
+    
+    # Información de sesión
+    st.markdown("### 👤 Información de Sesión")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info(f"**Usuario:** {user_data.get('nombre', 'N/A')}")
+    
+    with col2:
+        st.info(f"**Rol:** {rol_usuario}")
+    
+    with col3:
+        st.info(f"**Email:** {user_data.get('email', 'N/A')}")
+    
+    st.markdown("---")
+    
+    # Métricas principales según rol
+    st.markdown("### 📊 Métricas del Sistema")
+    
+    if rol_usuario.lower() == 'administrador':
+        # Métricas para administrador
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("👥 Total Usuarios", "150")
+        with col2:
+            st.metric("👨‍🏫 Profesores", "25")
+        with col3:
+            st.metric("👨‍🎓 Estudiantes", "125")
+        with col4:
+            st.metric("📚 Formaciones", "89")
+            
+        st.markdown("---")
+        
+        # Acceso rápido a módulos
+        st.markdown("### 🚀 Acceso Rápido a Módulos")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("👥 Gestionar Usuarios", use_container_width=True):
+                st.session_state['modulo_actual'] = '👥 Usuarios'
+                st.rerun()
+                
+        with col2:
+            if st.button("📚 Formación Complementaria", use_container_width=True):
+                st.session_state['modulo_actual'] = '📚 Formación Complementaria'
+                st.rerun()
+                
+        with col3:
+            if st.button("⚙️ Configuración", use_container_width=True):
+                st.session_state['modulo_actual'] = '⚙️ Configuración'
+                st.rerun()
+    
+    elif rol_usuario.lower() == 'profesor':
+        # Métricas para profesor
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("👨‍🎓 Estudiantes", "45")
+        with col2:
+            st.metric("📚 Cursos Activos", "12")
+        with col3:
+            st.metric("📊 Reportes", "8")
+            
+        st.markdown("---")
+        
+        # Acceso rápido a módulos
+        st.markdown("### 🚀 Acceso Rápido a Módulos")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("👨‍🎓 Mis Estudiantes", use_container_width=True):
+                st.session_state['modulo_actual'] = '👨‍🎓 Estudiantes'
+                st.rerun()
+                
+        with col2:
+            if st.button("📚 Formación Complementaria", use_container_width=True):
+                st.session_state['modulo_actual'] = '📚 Formación Complementaria'
+                st.rerun()
+    
+    elif rol_usuario.lower() == 'estudiante':
+        # Métricas para estudiante
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("📚 Cursos Inscritos", "6")
+        with col2:
+            st.metric("📊 Progreso", "75%")
+        with col3:
+            st.metric("📁 Documentos", "24")
+            
+        st.markdown("---")
+        
+        # Acceso rápido a módulos
+        st.markdown("### 🚀 Acceso Rápido a Módulos")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📚 Mi Formación", use_container_width=True):
+                st.session_state['modulo_actual'] = '📚 Formación Complementaria'
+                st.rerun()
+                
+        with col2:
+            if st.button("📁 Mis Documentos", use_container_width=True):
+                st.session_state['modulo_actual'] = '📁 Mis Documentos'
+                st.rerun()
+    
+    else:
+        st.warning("⚠️ Rol no reconocido")
+        st.info("🔍 Contacte al administrador del sistema")
+    
+    # Actividad reciente (común para todos)
+    st.markdown("---")
+    st.markdown("### 📈 Actividad Reciente del Sistema")
+    
+    actividad_reciente = [
+        {"usuario": "Juan Pérez", "accion": "Inició sesión", "hora": "Hace 5 min"},
+        {"usuario": "María García", "accion": "Subió documento", "hora": "Hace 12 min"},
+        {"usuario": "Carlos López", "accion": "Completó formación", "hora": "Hace 25 min"},
+        {"usuario": "Ana Martínez", "accion": "Generó reporte", "hora": "Hace 1 hora"}
+    ]
+    
+    for actividad in actividad_reciente:
+        with st.expander(f"🔍 {actividad['usuario']} - {actividad['accion']}"):
+            st.write(f"**Usuario:** {actividad['usuario']}")
+            st.write(f"**Acción:** {actividad['accion']}")
+            st.write(f"**Hora:** {actividad['hora']}")
+    
+    # Footer informativo
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #666; font-size: 0.9em;'>
+        🎓 SICADFOC 2026 - Sistema de Gestión Académica<br>
+        <em>Panel de control principal</em>
+    </div>
+    """, unsafe_allow_html=True)
+
 def mostrar_gestion_usuarios():
-    """Muestra el módulo de gestión de usuarios"""
+    """Muestra el módulo de gestión de usuarios con estilo unificado"""
     st.markdown("## 👥 Gestión de Usuarios")
     st.markdown("---")
     
@@ -176,15 +502,131 @@ def mostrar_gestion_usuarios():
     with tab1:
         st.markdown("### 📋 Lista de Usuarios Registrados")
         
-        # Tabla de usuarios simulada
-        usuarios_data = {
-            'Nombre': ['Juan Pérez', 'María García', 'Carlos López'],
-            'Email': ['juan@iujo.edu', 'maria@iujo.edu', 'carlos@iujo.edu'],
-            'Rol': ['Estudiante', 'Profesor', 'Administrador'],
-            'Estado': ['✅ Activo', '✅ Activo', '⏳ Por aprobar']
-        }
+        # Datos de usuarios con estado
+        usuarios = [
+            {"nombre": "Juan Pérez", "email": "juan@iujo.edu", "rol": "Estudiante", "cedula": "V-12345678", "estado": "✅ Activo"},
+            {"nombre": "María García", "email": "maria@iujo.edu", "rol": "Profesor", "cedula": "V-87654321", "estado": "✅ Activo"},
+            {"nombre": "Carlos López", "email": "carlos@iujo.edu", "rol": "Administrador", "cedula": "V-45678912", "estado": "⏳ Por aprobar"}
+        ]
         
-        st.dataframe(pd.DataFrame(usuarios_data))
+        # Tabla compacta con estilo unificado
+        st.markdown("""
+        <style>
+        .tabla-usuarios {
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .tabla-usuarios table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #f1f5f9;
+        }
+        .tabla-usuarios th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+        }
+        .tabla-usuarios td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+            vertical-align: middle;
+        }
+        .tabla-usuarios tr:last-child td {
+            border-bottom: none;
+        }
+        .tabla-usuarios tr:hover {
+            background-color: rgba(71, 85, 105, 0.3);
+        }
+        .badge-activo {
+            background-color: #10b981;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-pendiente {
+            background-color: #f59e0b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .btn-accion {
+            background-color: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            color: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 2px;
+        }
+        .btn-accion:hover {
+            background-color: rgba(71, 85, 105, 0.9);
+            transform: translateY(-1px);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Construir tabla HTML
+        tabla_html = """
+        <div class="tabla-usuarios">
+            <table>
+                <thead>
+                    <tr>
+                        <th>👤 Nombre</th>
+                        <th>📧 Email</th>
+                        <th>🎓 Rol</th>
+                        <th>🆔 Cédula</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        for i, usuario in enumerate(usuarios):
+            estado_class = "badge-activo" if "Activo" in usuario['estado'] else "badge-pendiente"
+            tabla_html += f"""
+                    <tr>
+                        <td>{usuario['nombre']}</td>
+                        <td>{usuario['email']}</td>
+                        <td>{usuario['rol']}</td>
+                        <td>{usuario['cedula']}</td>
+                        <td><span class="{estado_class}">{usuario['estado']}</span></td>
+                        <td>
+                            <button class="btn-accion" onclick="alert('Editando {usuario['nombre']}')">✏️</button>
+                            <button class="btn-accion" onclick="alert('Eliminando {usuario['nombre']}')">🗑️</button>
+                        </td>
+                    </tr>
+            """
+        
+        tabla_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        
+        st.markdown(tabla_html, unsafe_allow_html=True)
+        
+        # Botones ocultos para la funcionalidad real
+        for i, usuario in enumerate(usuarios):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(f"Editar {usuario['nombre']}", key=f"editar_user_{i}"):
+                    st.info(f"✏️ Editando {usuario['nombre']}")
+            with col2:
+                if st.button(f"Eliminar {usuario['nombre']}", key=f"eliminar_user_{i}"):
+                    st.warning(f"🗑️ Eliminando {usuario['nombre']}")
     
     with tab2:
         st.markdown("### ✅ Usuarios por Aprobar (Captcha Validados)")
@@ -196,16 +638,88 @@ def mostrar_gestion_usuarios():
             {"nombre": "Luis Rodríguez", "cedula": "V-87654321", "email": "luis@iujo.edu"}
         ]
         
+        # Tabla compacta para usuarios por aprobar
+        st.markdown("""
+        <style>
+        .tabla-aprobaciones {
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .tabla-aprobaciones table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #f1f5f9;
+        }
+        .tabla-aprobaciones th {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+        }
+        .tabla-aprobaciones td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+            vertical-align: middle;
+        }
+        .tabla-aprobaciones tr:last-child td {
+            border-bottom: none;
+        }
+        .tabla-aprobaciones tr:hover {
+            background-color: rgba(71, 85, 105, 0.3);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Construir tabla HTML para aprobaciones
+        tabla_aprob_html = """
+        <div class="tabla-aprobaciones">
+            <table>
+                <thead>
+                    <tr>
+                        <th>👤 Nombre</th>
+                        <th>🆔 Cédula</th>
+                        <th>📧 Email</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
         for usuario in por_aprobar:
-            with st.expander(f"👤 {usuario['nombre']} - {usuario['cedula']}"):
-                st.write(f"📧 Email: {usuario['email']}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"✅ Aprobar {usuario['nombre']}", key=f"aprobar_{usuario['cedula']}"):
-                        st.success(f"✅ {usuario['nombre']} aprobado exitosamente")
-                with col2:
-                    if st.button(f"❌ Rechazar {usuario['nombre']}", key=f"rechazar_{usuario['cedula']}"):
-                        st.error(f"❌ {usuario['nombre']} rechazado")
+            tabla_aprob_html += f"""
+                    <tr>
+                        <td>{usuario['nombre']}</td>
+                        <td>{usuario['cedula']}</td>
+                        <td>{usuario['email']}</td>
+                        <td>
+                            <button class="btn-accion" onclick="alert('Aprobando {usuario['nombre']}')">✅</button>
+                            <button class="btn-accion" onclick="alert('Rechazando {usuario['nombre']}')">❌</button>
+                        </td>
+                    </tr>
+            """
+        
+        tabla_aprob_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        
+        st.markdown(tabla_aprob_html, unsafe_allow_html=True)
+        
+        # Botones ocultos para la funcionalidad real
+        for usuario in por_aprobar:
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(f"Aprobar {usuario['nombre']}", key=f"aprobar_{usuario['cedula']}"):
+                    st.success(f"✅ {usuario['nombre']} aprobado exitosamente")
+            with col2:
+                if st.button(f"Rechazar {usuario['nombre']}", key=f"rechazar_{usuario['cedula']}"):
+                    st.error(f"❌ {usuario['nombre']} rechazado")
     
     with tab3:
         st.markdown("### ➕ Crear Nuevo Usuario")
@@ -267,54 +781,237 @@ def mostrar_carga_pdf():
             st.write(f"📊 Estado: {archivo['estado']}")
 
 def mostrar_reportes():
-    """Muestra el módulo de reportes y auditoría"""
-    st.markdown("## 📊 Reportes y Auditoría")
+    """Muestra el módulo de reportes con estilo unificado"""
+    st.markdown("## 📊 Reportes")
     st.markdown("---")
     
-    # Filtros
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        fecha_inicio = st.date_input("📅 Fecha Inicio")
-    with col2:
-        fecha_fin = st.date_input("📅 Fecha Fin")
-    with col3:
-        tipo_reporte = st.selectbox("📋 Tipo de Reporte", ["Todos", "Usuarios", "Archivos", "Sistema"])
+    # Pestañas para diferentes tipos de reportes
+    tab1, tab2, tab3 = st.tabs(["📈 Estadísticas", "👥 Usuarios", "📚 Actividad Académica"])
     
-    # Generar reporte
-    if st.button("🔍 Generar Reporte"):
-        st.success("✅ Reporte generado exitosamente")
+    with tab1:
+        st.subheader("📈 Estadísticas Generales")
         
-        # Tabla de auditoría simulada
-        auditoria_data = {
-            'Fecha': ['2024-01-25', '2024-01-24', '2024-01-23'],
-            'Usuario': ['admin', 'juan.perez', 'maria.garcia'],
-            'Acción': ['Login', 'Subir PDF', 'Crear Usuario'],
-            'Resultado': ['✅ Éxito', '✅ Éxito', '❌ Error']
+        # Métricas principales con estilo unificado
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="curso-card" style="text-align: center;">
+                <h3 style="color: #f1f5f9; margin: 0;">👥 Total Usuarios</h3>
+                <p style="font-size: 2rem; color: #10b981; margin: 10px 0;">150</p>
+                <p style="color: #10b981; margin: 0;">+12%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="curso-card" style="text-align: center;">
+                <h3 style="color: #f1f5f9; margin: 0;">📚 Cursos Activos</h3>
+                <p style="font-size: 2rem; color: #10b981; margin: 10px 0;">45</p>
+                <p style="color: #10b981; margin: 0;">+5%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="curso-card" style="text-align: center;">
+                <h3 style="color: #f1f5f9; margin: 0;">🎓 Graduados</h3>
+                <p style="font-size: 2rem; color: #10b981; margin: 10px 0;">89</p>
+                <p style="color: #10b981; margin: 0;">+8%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+            <div class="curso-card" style="text-align: center;">
+                <h3 style="color: #f1f5f9; margin: 0;">📊 Tasa de Éxito</h3>
+                <p style="font-size: 2rem; color: #10b981; margin: 10px 0;">94%</p>
+                <p style="color: #10b981; margin: 0;">+2%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Tabla de tendencias con estilo unificado
+        st.subheader("� Tendencias del Sistema")
+        
+        tendencias = [
+            {"indicador": "Inscripciones", "valor": "+15%", "estado": "✅ Positivo"},
+            {"indicador": "Cursos Virtuales", "valor": "+20%", "estado": "✅ Positivo"},
+            {"indicador": "Tasa Aprobación", "valor": "+10%", "estado": "✅ Positivo"},
+            {"indicador": "Usuarios Activos", "valor": "+8%", "estado": "✅ Positivo"}
+        ]
+        
+        for tendencia in tendencias:
+            st.markdown(f"""
+            <div class="curso-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h4 style="color: #f1f5f9; margin: 0;">📊 {tendencia['indicador']}</h4>
+                        <p style="color: #cbd5e1; margin: 5px 0;">Crecimiento mensual</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="color: #10b981; font-size: 1.2rem; font-weight: bold; margin: 0;">{tendencia['valor']}</p>
+                        <span style="color: #10b981; font-weight: bold;">{tendencia['estado']}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    with tab2:
+        st.subheader("👥 Reportes de Usuarios")
+        
+        # Filtros con estilo unificado
+        col1, col2 = st.columns(2)
+        with col1:
+            rol_filtro = st.selectbox("Filtrar por Rol", ["Todos", "Estudiante", "Profesor", "Administrador"])
+        
+        with col2:
+            estado_filtro = st.selectbox("Filtrar por Estado", ["Todos", "Activo", "Inactivo"])
+        
+        if st.button("🔍 Aplicar Filtros", use_container_width=True):
+            st.success(f"✅ Filtros aplicados: {rol_filtro}, {estado_filtro}")
+        
+        st.markdown("---")
+        
+        # Tabla compacta para reportes de usuarios
+        st.markdown("""
+        <style>
+        .tabla-reportes {
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
+        .tabla-reportes table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #f1f5f9;
+        }
+        .tabla-reportes th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+        }
+        .tabla-reportes td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+            vertical-align: middle;
+        }
+        .tabla-reportes tr:last-child td {
+            border-bottom: none;
+        }
+        .tabla-reportes tr:hover {
+            background-color: rgba(71, 85, 105, 0.3);
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
-        st.dataframe(pd.DataFrame(auditoria_data))
+        # Construir tabla HTML para reportes
+        tabla_reporte_html = """
+        <div class="tabla-reportes">
+            <table>
+                <thead>
+                    <tr>
+                        <th>👤 Nombre</th>
+                        <th>🎓 Rol</th>
+                        <th>Estado</th>
+                        <th>📅 Último Acceso</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        for i, usuario in enumerate(usuarios_reporte):
+            tabla_reporte_html += f"""
+                    <tr>
+                        <td>{usuario['nombre']}</td>
+                        <td>{usuario['rol']}</td>
+                        <td><span class="badge-activo">{usuario['estado']}</span></td>
+                        <td>{usuario['ultimo_acceso']}</td>
+                        <td>
+                            <button class="btn-accion" onclick="alert('Detalles de {usuario['nombre']}')">📈</button>
+                            <button class="btn-accion" onclick="alert('Reporte de {usuario['nombre']}')">📊</button>
+                        </td>
+                    </tr>
+            """
+        
+        tabla_reporte_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        
+        st.markdown(tabla_reporte_html, unsafe_allow_html=True)
+        
+        # Botones ocultos para la funcionalidad real
+        for i, usuario in enumerate(usuarios_reporte):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(f"Detalles {usuario['nombre']}", key=f"detalles_user_{i}"):
+                    st.info(f"📈 Viendo detalles de {usuario['nombre']}")
+            with col2:
+                if st.button(f"Reporte {usuario['nombre']}", key=f"reporte_user_{i}"):
+                    st.success(f"📊 Reporte generado para {usuario['nombre']}")
+            
+            st.markdown("---")
     
-    # Estadísticas
-    st.markdown("---")
-    st.markdown("### 📈 Estadísticas de Auditoría")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("🔐 Total Logins", "1,234")
-    with col2:
-        st.metric("📁 Archivos Procesados", "567")
-    with col3:
-        st.metric("👤 Usuarios Creados", "89")
-    with col4:
-        st.metric("⚠️ Errores", "12")
+    with tab3:
+        st.subheader("📚 Actividad Académica")
+        
+        # Estadísticas por curso con estilo unificado
+        cursos_stats = [
+            {"curso": "Python Avanzado", "inscritos": 45, "aprobados": 42, "tasa": "93%", "profesor": "Ing. López"},
+            {"curso": "Machine Learning", "inscritos": 38, "aprobados": 35, "tasa": "92%", "profesor": "Dr. Pérez"},
+            {"curso": "Web Development", "inscritos": 52, "aprobados": 48, "tasa": "92%", "profesor": "Dra. García"}
+        ]
+        
+        for i, curso in enumerate(cursos_stats):
+            st.markdown(f"""
+            <div class="curso-card">
+                <h4 style="color: #f1f5f9; margin: 0;">📚 {curso['curso']}</h4>
+                <p style="color: #cbd5e1; margin: 5px 0;">�‍🏫 Profesor: {curso['profesor']}</p>
+                
+                <div style="display: flex; justify-content: space-between; margin: 10px 0;">
+                    <div style="text-align: center;">
+                        <p style="color: #cbd5e1; margin: 0; font-size: 0.9rem;">Inscritos</p>
+                        <p style="color: #f1f5f9; font-weight: bold; margin: 0;">{curso['inscritos']}</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <p style="color: #cbd5e1; margin: 0; font-size: 0.9rem;">Aprobados</p>
+                        <p style="color: #10b981; font-weight: bold; margin: 0;">{curso['aprobados']}</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <p style="color: #cbd5e1; margin: 0; font-size: 0.9rem;">Tasa</p>
+                        <p style="color: #10b981; font-weight: bold; margin: 0;">{curso['tasa']}</p>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Botones de acción
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"📈 Ver Estadísticas", key=f"stats_curso_{i}", use_container_width=True):
+                    st.info(f"� Estadísticas de {curso['curso']}")
+            with col2:
+                if st.button(f"📊 Reporte Completo", key=f"reporte_curso_{i}", use_container_width=True):
+                    st.success(f"📊 Reporte generado para {curso['curso']}")
+            
+            st.markdown("---")
 
 def mostrar_configuracion():
     """Muestra el módulo de configuración del sistema"""
     st.markdown("## ⚙️ Configuración")
     st.markdown("---")
     
-    # Tabs de configuración
-    tab1, tab2, tab3 = st.tabs(["🔧 General", "📧 Correo", "🔒 Seguridad"])
+    # Tabs de configuración (simplificado - eliminada pestaña Correo)
+    tab1, tab2 = st.tabs(["🔧 General", "🔒 Seguridad"])
     
     with tab1:
         st.markdown("### 🔧 Configuración General")
@@ -328,18 +1025,7 @@ def mostrar_configuracion():
             st.success("✅ Configuración guardada exitosamente")
     
     with tab2:
-        st.markdown("### 📧 Configuración de Correo")
-        
-        email_host = st.text_input("🌐 Servidor SMTP", value="smtp.gmail.com")
-        email_puerto = st.number_input("📡 Puerto", value=587)
-        email_usuario = st.text_input("👤 Usuario Email")
-        email_password = st.text_input("🔑 Contraseña", type="password")
-        
-        if st.button("🧪 Probar Conexión Email"):
-            st.success("✅ Conexión email exitosa")
-    
-    with tab3:
-        st.markdown("### 🔒 Configuración de Seguridad")
+        st.markdown("###  Configuración de Seguridad")
         
         # Política de contraseñas
         longitud_minima = st.number_input("📏 Longitud Mínima de Contraseña", value=8)
@@ -426,114 +1112,247 @@ def mostrar_mi_progreso():
             st.write(f"📊 Nota: {materia['nota']}")
 
 def mostrar_gestion_profesores():
-    """Muestra el módulo de gestión de profesores"""
+    """Muestra el módulo de gestión de profesores con estilo unificado"""
     st.markdown("## 👨‍🏫 Profesores")
     st.markdown("---")
     
-    # Pestañas principales
-    tab_lista, tab_cargas = st.tabs(["📋 Lista de Profesores", "📁 Gestión de Documentos"])
+    # Pestañas principales con coherencia
+    tab_lista, tab_aprobaciones, tab_cargas = st.tabs(["📋 Lista de Profesores", "✅ Aprobaciones", "📁 Cargas Académicas"])
     
-    with tab_lista:
-        col1, col2 = st.columns([2, 1])
+    with tab1:
+        st.markdown("### 📋 Lista de Profesores Registrados")
         
-        with col1:
-            st.subheader("📋 Lista de Profesores")
-            
-            # Datos de ejemplo
-            profesores = [
-                {"nombre": "Dr. Juan Pérez", "cedula": "12345678", "departamento": "Matemáticas", "email": "jperez@iujo.edu"},
-                {"nombre": "Dra. María García", "cedula": "87654321", "departamento": "Física", "email": "mgarcia@iujo.edu"},
-                {"nombre": "Ing. Carlos López", "cedula": "45678912", "departamento": "Computación", "email": "clopez@iujo.edu"}
-            ]
-            
-            # Crear tabla limpia sin expanders
-            for i, prof in enumerate(profesores):
-                col_nombre, col_info, col_acciones = st.columns([2, 2, 1])
-                
-                with col_nombre:
-                    st.write(f"**👨‍🏫 {prof['nombre']}**")
-                
-                with col_info:
-                    st.write(f"🆔 {prof['cedula']}")
-                    st.write(f"📧 {prof['email']}")
-                    st.write(f"🏢 {prof['departamento']}")
-                
-                with col_acciones:
-                    if st.button(f"✏️", key=f"editar_prof_{i}", help="Editar"):
-                        st.info(f"✏️ Editando {prof['nombre']}")
-                    if st.button(f"🗑️", key=f"eliminar_prof_{i}", help="Eliminar"):
-                        st.warning(f"🗑️ Eliminando {prof['nombre']}")
-                
-                st.markdown("---")
+        # Datos de ejemplo con estado
+        profesores = [
+            {"nombre": "Dr. Juan Pérez", "cedula": "V-12345678", "departamento": "Matemáticas", "email": "jperez@iujo.edu", "estado": "✅ Activo"},
+            {"nombre": "Dra. María García", "cedula": "V-87654321", "departamento": "Física", "email": "mgarcia@iujo.edu", "estado": "✅ Activo"},
+            {"nombre": "Ing. Carlos López", "cedula": "V-45678912", "departamento": "Computación", "email": "clopez@iujo.edu", "estado": "⏳ Por aprobar"}
+        ]
         
-        with col2:
-            st.subheader("➕ Agregar Profesor")
-            with st.form("form_profesor"):
-                nombre = st.text_input("👤 Nombre Completo")
-                cedula = st.text_input("🆔 Cédula")
-                departamento = st.selectbox("🏢 Departamento", ["Matemáticas", "Física", "Computación", "Química", "Biología"])
-                email = st.text_input("📧 Email Institucional")
-                
-                if st.form_submit_button("🚀 Agregar Profesor"):
-                    st.success(f"✅ Profesor {nombre} agregado exitosamente")
+        # Tabla compacta para profesores
+        st.markdown("""
+        <style>
+        .tabla-profesores {
+            background-color: rgba(30, 41, 59, 0.9);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .tabla-profesores table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #f1f5f9;
+        }
+        .tabla-profesores th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+        }
+        .tabla-profesores td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+            vertical-align: middle;
+        }
+        .tabla-profesores tr:last-child td {
+            border-bottom: none;
+        }
+        .tabla-profesores tr:hover {
+            background-color: rgba(71, 85, 105, 0.3);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Construir tabla HTML para profesores
+        tabla_profesores_html = """
+        <div class="tabla-profesores">
+            <table>
+                <thead>
+                    <tr>
+                        <th>👤 Nombre</th>
+                        <th>📧 Email</th>
+                        <th>🏢 Departamento</th>
+                        <th>🆔 Cédula</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        for i, prof in enumerate(profesores):
+            estado_class = "badge-activo" if "Activo" in prof['estado'] else "badge-pendiente"
+            tabla_profesores_html += f"""
+                    <tr>
+                        <td>{prof['nombre']}</td>
+                        <td>{prof['email']}</td>
+                        <td>{prof['departamento']}</td>
+                        <td>{prof['cedula']}</td>
+                        <td><span class="{estado_class}">{prof['estado']}</span></td>
+                        <td>
+                            <button class="btn-accion" onclick="alert('Editando {prof['nombre']}')">✏️</button>
+                            <button class="btn-accion" onclick="alert('Eliminando {prof['nombre']}')">🗑️</button>
+                        </td>
+                    </tr>
+            """
+        
+        tabla_profesores_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        
+        st.markdown(tabla_profesores_html, unsafe_allow_html=True)
+        
+        # Botones ocultos para la funcionalidad real
+        for i, prof in enumerate(profesores):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(f"Editar {prof['nombre']}", key=f"editar_prof_{i}"):
+                    st.info(f"✏️ Editando {prof['nombre']}")
+            with col2:
+                if st.button(f"Eliminar {prof['nombre']}", key=f"eliminar_prof_{i}"):
+                    st.warning(f"🗑️ Eliminando {prof['nombre']}")
+            
+            st.markdown("---")
+    
+    with tab_aprobaciones:
+        st.markdown("### ✅ Profesores por Aprobar")
+        st.warning("🔍 Profesores que completaron el registro y esperan aprobación")
+        
+        # Lista de profesores por aprobar
+        por_aprobar = [
+            {"nombre": "Dr. Ana Martínez", "cedula": "V-98765432", "departamento": "Química", "email": "amartinez@iujo.edu"},
+            {"nombre": "Ing. Luis Rodríguez", "cedula": "V-13579246", "departamento": "Biología", "email": "lrodriguez@iujo.edu"}
+        ]
+        
+        for prof in por_aprobar:
+            st.markdown(f"""
+            <div class="curso-card">
+                <h4 style="color: #f1f5f9; margin: 0;">👨‍🏫 {prof['nombre']}</h4>
+                <p style="color: #cbd5e1; margin: 5px 0;">🆔 {prof['cedula']}</p>
+                <p style="color: #cbd5e1; margin: 5px 0;">📧 {prof['email']}</p>
+                <p style="color: #cbd5e1; margin: 5px 0;">🏢 {prof['departamento']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"✅ Aprobar {prof['nombre']}", key=f"aprobar_prof_{prof['cedula']}", use_container_width=True):
+                    st.success(f"✅ {prof['nombre']} aprobado exitosamente")
+            with col2:
+                if st.button(f"❌ Rechazar {prof['nombre']}", key=f"rechazar_prof_{prof['cedula']}", use_container_width=True):
+                    st.error(f"❌ {prof['nombre']} rechazado")
+            
+            st.markdown("---")
+    
+    with tab3:
+        st.markdown("### ➕ Agregar Nuevo Profesor")
+        with st.form("form_profesor"):
+            nombre = st.text_input("👤 Nombre Completo")
+            cedula = st.text_input("🆔 Cédula")
+            departamento = st.selectbox("🏢 Departamento", ["Matemáticas", "Física", "Computación", "Química", "Biología"])
+            email = st.text_input("📧 Email Institucional")
+            
+            if st.form_submit_button("🚀 Agregar Profesor"):
+                st.success(f"✅ Profesor {nombre} agregado exitosamente")
     
     with tab_cargas:
         # Mostrar opciones de carga
         mostrar_opciones_carga()
 
 def mostrar_gestion_estudiantes():
-    """Muestra el módulo de gestión de estudiantes"""
+    """Muestra el módulo de gestión de estudiantes con estilo unificado"""
     st.markdown("## 👨‍🎓 Estudiantes")
     st.markdown("---")
     
-    # Pestañas principales
-    tab_lista, tab_cargas = st.tabs(["📋 Lista de Estudiantes", "📁 Gestión de Documentos"])
+    # Pestañas principales con coherencia
+    tab1, tab2, tab3 = st.tabs(["📋 Lista de Estudiantes", "✅ Aprobaciones", "📁 Cargas Académicas"])
     
-    with tab_lista:
-        col1, col2 = st.columns([2, 1])
+    with tab1:
+        st.markdown("### 📋 Lista de Estudiantes Registrados")
         
-        with col1:
-            st.subheader("📋 Lista de Estudiantes")
-            
-            # Datos de ejemplo
-            estudiantes = [
-                {"nombre": "Ana Martínez", "cedula": "23456789", "carrera": "Ingeniería", "semestre": "6to", "promedio": "8.5"},
-                {"nombre": "Luis Rodríguez", "cedula": "34567890", "carrera": "Matemáticas", "semestre": "4to", "promedio": "9.0"},
-                {"nombre": "Sofía Hernández", "cedula": "45678901", "carrera": "Física", "semestre": "5to", "promedio": "8.8"}
-            ]
-            
-            # Crear tabla limpia sin expanders
-            for i, est in enumerate(estudiantes):
-                col_nombre, col_info, col_acciones = st.columns([2, 2, 1])
-                
-                with col_nombre:
-                    st.write(f"**👨‍🎓 {est['nombre']}**")
-                
-                with col_info:
-                    st.write(f"🆔 {est['cedula']}")
-                    st.write(f"🎓 {est['carrera']}")
-                    st.write(f"📚 {est['semestre']}")
-                    st.write(f"📊 Promedio: {est['promedio']}")
-                
-                with col_acciones:
-                    if st.button(f"✏️", key=f"editar_est_{i}", help="Editar"):
-                        st.info(f"✏️ Editando {est['nombre']}")
-                    if st.button(f"🗑️", key=f"eliminar_est_{i}", help="Eliminar"):
-                        st.warning(f"🗑️ Eliminando {est['nombre']}")
-                
-                st.markdown("---")
+        # Datos de ejemplo con estado
+        estudiantes = [
+            {"nombre": "Ana Martínez", "cedula": "V-23456789", "carrera": "Ingeniería", "semestre": "6to", "email": "amartinez@iujo.edu", "promedio": "8.5", "estado": "✅ Activo"},
+            {"nombre": "Luis Rodríguez", "cedula": "V-34567890", "carrera": "Matemáticas", "semestre": "4to", "email": "lrodriguez@iujo.edu", "promedio": "9.0", "estado": "✅ Activo"},
+            {"nombre": "Sofía Hernández", "cedula": "V-45678901", "carrera": "Física", "semestre": "5to", "email": "shernandez@iujo.edu", "promedio": "8.8", "estado": "⏳ Por aprobar"}
+        ]
         
-        with col2:
-            st.subheader("➕ Agregar Estudiante")
-            with st.form("form_estudiante"):
-                nombre = st.text_input("👤 Nombre Completo")
-                cedula = st.text_input("🆔 Cédula")
-                carrera = st.selectbox("🎓 Carrera", ["Ingeniería", "Matemáticas", "Física", "Química", "Biología"])
-                semestre = st.selectbox("📚 Semestre", ["1ro", "2do", "3ro", "4to", "5to", "6to", "7mo", "8vo", "9no", "10mo"])
-                email = st.text_input("📧 Email Personal")
-                
-                if st.form_submit_button("🚀 Agregar Estudiante"):
-                    st.success(f"✅ Estudiante {nombre} agregado exitosamente")
+        # Tabla con estilo unificado como Usuarios
+        for i, est in enumerate(estudiantes):
+            st.markdown(f"""
+            <div class="curso-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0; color: #f1f5f9;">👨‍🎓 {est['nombre']}</h4>
+                        <p style="margin: 5px 0; color: #cbd5e1;">🆔 {est['cedula']}</p>
+                        <p style="margin: 5px 0; color: #cbd5e1;">📧 {est['email']}</p>
+                        <p style="margin: 5px 0; color: #cbd5e1;">🎓 {est['carrera']} - {est['semestre']}</p>
+                        <p style="margin: 5px 0; color: #cbd5e1;">� Promedio: {est['promedio']}</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="color: #10b981; font-weight: bold;">{est['estado']}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Botones de acción como en Usuarios
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"✏️ Editar", key=f"editar_est_{i}", use_container_width=True):
+                    st.info(f"✏️ Editando {est['nombre']}")
+            with col2:
+                if st.button(f"🗑️ Eliminar", key=f"eliminar_est_{i}", use_container_width=True):
+                    st.warning(f"🗑️ Eliminando {est['nombre']}")
+            
+            st.markdown("---")
+    
+    with tab2:
+        st.markdown("### ✅ Estudiantes por Aprobar")
+        st.warning("� Estudiantes que completaron el registro y esperan aprobación")
+        
+        # Lista de estudiantes por aprobar
+        por_aprobar = [
+            {"nombre": "Carlos López", "cedula": "V-56789012", "carrera": "Química", "semestre": "3ro", "email": "clopez@iujo.edu"},
+            {"nombre": "María González", "cedula": "V-67890123", "carrera": "Biología", "semestre": "2do", "email": "mgonzalez@iujo.edu"}
+        ]
+        
+        for est in por_aprobar:
+            st.markdown(f"""
+            <div class="curso-card">
+                <h4 style="color: #f1f5f9; margin: 0;">👨‍🎓 {est['nombre']}</h4>
+                <p style="color: #cbd5e1; margin: 5px 0;">🆔 {est['cedula']}</p>
+                <p style="color: #cbd5e1; margin: 5px 0;">📧 {est['email']}</p>
+                <p style="color: #cbd5e1; margin: 5px 0;">🎓 {est['carrera']} - {est['semestre']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"✅ Aprobar {est['nombre']}", key=f"aprobar_est_{est['cedula']}", use_container_width=True):
+                    st.success(f"✅ {est['nombre']} aprobado exitosamente")
+            with col2:
+                if st.button(f"❌ Rechazar {est['nombre']}", key=f"rechazar_est_{est['cedula']}", use_container_width=True):
+                    st.error(f"❌ {est['nombre']} rechazado")
+            
+            st.markdown("---")
+    
+    with tab3:
+        st.markdown("### ➕ Agregar Nuevo Estudiante")
+        with st.form("form_estudiante"):
+            nombre = st.text_input("👤 Nombre Completo")
+            cedula = st.text_input("🆔 Cédula")
+            carrera = st.selectbox("🎓 Carrera", ["Ingeniería", "Matemáticas", "Física", "Química", "Biología"])
+            semestre = st.selectbox("📚 Semestre", ["1ro", "2do", "3ro", "4to", "5to", "6to", "7mo", "8vo", "9no", "10mo"])
+            email = st.text_input("📧 Email Personal")
+            
+            if st.form_submit_button("🚀 Agregar Estudiante"):
+                st.success(f"✅ Estudiante {nombre} agregado exitosamente")
     
     with tab_cargas:
         # Mostrar opciones de carga
@@ -556,12 +1375,12 @@ def mostrar_formacion_complementaria():
             {"nombre": "Web Development", "duracion": "45 horas", "modalidad": "Presencial", "profesor": "Dra. García"}
         ]
         
-        # Vista de tarjetas sin expanders
+        # Vista de tarjetas con diseño mejorado
         cols = st.columns(3)
         for i, curso in enumerate(cursos):
             with cols[i % 3]:
                 st.markdown(f"""
-                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
+                <div class="curso-card">
                     <h4>📚 {curso['nombre']}</h4>
                     <p>⏱️ Duración: {curso['duracion']}</p>
                     <p>🏢 Modalidad: {curso['modalidad']}</p>
@@ -581,13 +1400,13 @@ def mostrar_formacion_complementaria():
             {"nombre": "Scrum Master", "fecha": "2023-11-10", "estado": "Por Renovar"}
         ]
         
-        # Vista de tarjetas sin expanders
+        # Vista de tarjetas con diseño mejorado
         cols = st.columns(3)
         for i, cert in enumerate(certificaciones):
             with cols[i % 3]:
                 color_estado = "🟢" if cert['estado'] == "Vigente" else "🟡"
                 st.markdown(f"""
-                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
+                <div class="curso-card">
                     <h4>🏆 {cert['nombre']}</h4>
                     <p>📅 Fecha: {cert['fecha']}</p>
                     <p><strong>{color_estado} {cert['estado']}</strong></p>
@@ -603,12 +1422,12 @@ def mostrar_formacion_complementaria():
             {"nombre": "Feria de Empleo", "fecha": "2026-04-25", "tipo": "Networking"}
         ]
         
-        # Vista de tarjetas sin expanders
+        # Vista de tarjetas con diseño mejorado
         cols = st.columns(3)
         for i, evento in enumerate(eventos):
             with cols[i % 3]:
                 st.markdown(f"""
-                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
+                <div class="curso-card">
                     <h4>📅 {evento['nombre']}</h4>
                     <p>📋 Tipo: {evento['tipo']}</p>
                     <p>🗓️ Fecha: {evento['fecha']}</p>
@@ -626,119 +1445,232 @@ def mostrar_formacion_complementaria():
 # FUNCIONES DE DASHBOARD
 # =================================================================
 
-def mostrar_dashboard_protegido():
-    """Muestra el dashboard principal con navegación protegida"""
+def mostrar_modulo_seleccionado():
+    """Muestra el contenido del módulo seleccionado con estructura de tabs"""
     
-    # Limpiar mensajes de bienvenida después de 3 segundos
-    if 'mensaje_bienvenida' not in st.session_state:
-        st.session_state['mensaje_bienvenida'] = True
-        st.session_state['tiempo_bienvenida'] = time.time()
+    # Obtener módulo actual
+    modulo_actual = st.session_state.get('modulo_actual', '🏠 Dashboard Principal')
     
-    # Eliminar mensaje de bienvenida después de 3 segundos
-    if time.time() - st.session_state.get('tiempo_bienvenida', 0) > 3:
-        st.session_state['mensaje_bienvenida'] = False
+    # Mapeo de módulos a funciones locales con tabs
+    modulos_funciones = {
+        "👥 Usuarios": "mostrar_gestion_usuarios",
+        "👨‍🏫 Profesores": "mostrar_gestion_profesores",
+        "👨‍🎓 Estudiantes": "mostrar_gestion_estudiantes", 
+        "📚 Formación Complementaria": "mostrar_formacion_complementaria",
+        "📊 Reportes": "mostrar_reportes",
+        "⚙️ Configuración": "mostrar_configuracion",
+        "🏠 Dashboard Principal": "mostrar_dashboard_principal"
+    }
     
-    # Mostrar mensaje de bienvenida solo si está activo
-    if st.session_state.get('mensaje_bienvenida', False):
-        st.success(f"✅ Bienvenido {st.session_state.user_data.get('nombre', 'Usuario')}")
-        st.info(f"🔐 Rol: {st.session_state.rol}")
-    
-    # Obtener página seleccionada del sidebar
-    pagina = mostrar_sidebar_protegido()
-    
-    # Mostrar contenido según la página seleccionada
-    if pagina == "👥 Usuarios":
-        mostrar_gestion_usuarios()
-    elif pagina == "👨‍🏫 Profesores":
-        mostrar_gestion_profesores()
-    elif pagina == "👨‍🎓 Estudiantes":
-        mostrar_gestion_estudiantes()
-    elif pagina == "📚 Formación Complementaria":
-        mostrar_formacion_complementaria()
-    elif pagina == " Reportes":
-        mostrar_reportes()
-    elif pagina == "⚙️ Configuración":
-        mostrar_configuracion()
-    elif pagina == "📁 Mis Documentos":
-        mostrar_mis_documentos()
-    elif pagina == "📊 Mi Progreso":
-        mostrar_mi_progreso()
+    # Importar y ejecutar función correspondiente
+    if modulo_actual in modulos_funciones:
+        nombre_funcion = modulos_funciones[modulo_actual]
+        
+        # Ejecutar función local con tabs
+        if nombre_funcion == "mostrar_dashboard_principal":
+            mostrar_dashboard_principal()
+        elif nombre_funcion == "mostrar_gestion_usuarios":
+            mostrar_gestion_usuarios()
+        elif nombre_funcion == "mostrar_gestion_profesores":
+            mostrar_gestion_profesores()
+        elif nombre_funcion == "mostrar_gestion_estudiantes":
+            mostrar_gestion_estudiantes()
+        elif nombre_funcion == "mostrar_formacion_complementaria":
+            mostrar_formacion_complementaria()
+        elif nombre_funcion == "mostrar_reportes":
+            mostrar_reportes()
+        elif nombre_funcion == "mostrar_configuracion":
+            mostrar_configuracion()
+        else:
+            st.error(f"❌ Módulo '{modulo_actual}' no encontrado")
+            st.info("🔍 Contacte al administrador del sistema")
     else:
-        # Módulo no reconocido - mostrar banner por defecto
-        mostrar_banner_informativo()
+        st.error(f"❌ Módulo '{modulo_actual}' no está disponible")
+        st.info("🔍 Seleccione un módulo válido del menú lateral")
 
-def mostrar_banner_informativo():
-    """Muestra un banner informativo con desplazamiento de izquierda a derecha"""
+def mostrar_reportes():
+    """Muestra el módulo de reportes con tabs"""
+    st.markdown("## 📊 Reportes")
     st.markdown("---")
     
-    # CSS para banner con desplazamiento
-    st.markdown("""
-    <style>
-    .banner-container {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        padding: 20px;
-        margin: 20px 0;
-        overflow: hidden;
-        position: relative;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
+    # Pestañas para diferentes tipos de reportes
+    tab1, tab2, tab3 = st.tabs(["📈 Estadísticas", "👥 Usuarios", "📚 Actividad Académica"])
     
-    .banner-content {
-        display: flex;
-        animation: scroll 20s linear infinite;
-        white-space: nowrap;
-    }
+    with tab1:
+        st.subheader("📈 Estadísticas Generales")
+        
+        # Métricas principales
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("👥 Total Usuarios", "150", "+12%")
+        with col2:
+            st.metric("📚 Cursos Activos", "45", "+5%")
+        with col3:
+            st.metric("🎓 Graduados", "89", "+8%")
+        with col4:
+            st.metric("📊 Tasa de Éxito", "94%", "+2%")
+        
+        st.markdown("---")
+        
+        # Gráficos simulados
+        st.subheader("📈 Tendencias")
+        st.write("• Crecimiento del 15% en inscripciones")
+        st.write("• Aumento del 20% en cursos virtuales")
+        st.write("• Mejora del 10% en tasas de aprobación")
     
-    .banner-item {
-        color: white;
-        font-size: 16px;
-        font-weight: 600;
-        padding: 0 50px;
-        display: flex;
-        align-items: center;
-    }
-    
-    @keyframes scroll {
-        0% {
-            transform: translateX(100%);
+    with tab2:
+        st.subheader("👥 Reportes de Usuarios")
+        
+        # Tabla de usuarios
+        usuarios_data = {
+            'Nombre': ['Juan Pérez', 'María García', 'Carlos López'],
+            'Rol': ['Estudiante', 'Profesor', 'Administrador'],
+            'Estado': ['Activo', 'Activo', 'Activo'],
+            'Último Acceso': ['2024-03-30', '2024-03-31', '2024-03-31']
         }
-        100% {
-            transform: translateX(-100%);
-        }
-    }
+        
+        st.dataframe(pd.DataFrame(usuarios_data))
+        
+        # Filtros
+        st.markdown("### 🔍 Filtros")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            rol_filtro = st.selectbox("Filtrar por Rol", ["Todos", "Estudiante", "Profesor", "Administrador"])
+        
+        with col2:
+            estado_filtro = st.selectbox("Filtrar por Estado", ["Todos", "Activo", "Inactivo"])
+        
+        if st.button("🔍 Aplicar Filtros"):
+            st.success(f"✅ Filtros aplicados: {rol_filtro}, {estado_filtro}")
     
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        margin-top: 30px;
-    }
+    with tab3:
+        st.subheader("📚 Actividad Académica")
+        
+        # Estadísticas por curso
+        cursos_stats = [
+            {"curso": "Python Avanzado", "inscritos": 45, "aprobados": 42, "tasa": "93%"},
+            {"curso": "Machine Learning", "inscritos": 38, "aprobados": 35, "tasa": "92%"},
+            {"curso": "Web Development", "inscritos": 52, "aprobados": 48, "tasa": "92%"}
+        ]
+        
+        for curso in cursos_stats:
+            with st.expander(f"📚 {curso['curso']}"):
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("👥 Inscritos", curso['inscritos'])
+                with col2:
+                    st.metric("✅ Aprobados", curso['aprobados'])
+                with col3:
+                    st.metric("📊 Tasa", curso['tasa'])
+                with col4:
+                    if st.button(f"📈 Detalles", key=f"detalles_{curso['curso']}"):
+                        st.info(f"📈 Ver detalles de {curso['curso']}")
+
+def mostrar_configuracion():
+    """Muestra el módulo de configuración con tabs"""
+    st.markdown("## ⚙️ Configuración")
+    st.markdown("---")
     
-    .info-card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        border-left: 4px solid #667eea;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # Pestañas para diferentes secciones de configuración
+    tab1, tab2, tab3, tab4 = st.tabs(["🔐 Seguridad", "📧 Correo", "🎨 Interfaz", "🌐 Sistema"])
     
-    # Banner con desplazamiento
-    st.markdown("""
-    <div class="banner-container">
-        <div class="banner-content">
-            <div class="banner-item">🎓 SICADFOC 2026 - Sistema Integrado de Control Académico</div>
-            <div class="banner-item">📅 Año Lectivo 2026</div>
-            <div class="banner-item">👥 1,250 Estudiantes Activos</div>
-            <div class="banner-item">👨‍🏫 85 Profesores</div>
-            <div class="banner-item">📚 45 Cursos Disponibles</div>
-            <div class="banner-item">🏆 Convocatoria Abierta</div>
-            <div class="banner-item">📊 Sistema en Línea - 99.9% Uptime</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with tab1:
+        st.subheader("🔐 Configuración de Seguridad")
+        
+        with st.form("form_seguridad"):
+            st.write("**Políticas de Contraseña**")
+            
+            longitud_minima = st.number_input("Longitud Mínima", min_value=6, max_value=20, value=8)
+            requerir_mayusculas = st.checkbox("Requerir Mayúsculas", value=True)
+            requerir_numeros = st.checkbox("Requerir Números", value=True)
+            requerir_especiales = st.checkbox("Requerir Caracteres Especiales", value=False)
+            
+            st.write("**Sesiones**")
+            tiempo_sesion = st.number_input("Tiempo de Sesión (minutos)", min_value=15, max_value=480, value=120)
+            
+            submit_button = st.form_submit_button("💾 Guardar Configuración de Seguridad")
+            
+            if submit_button:
+                st.success("✅ Configuración de seguridad guardada exitosamente")
+    
+    with tab2:
+        st.subheader("📧 Configuración de Correo")
+        
+        with st.form("form_correo"):
+            st.write("**Servidor SMTP**")
+            
+            smtp_server = st.text_input("Servidor SMTP", value="smtp.gmail.com")
+            smtp_puerto = st.number_input("Puerto", min_value=1, max_value=65535, value=587)
+            smtp_usuario = st.text_input("Usuario SMTP")
+            smtp_password = st.text_input("Contraseña SMTP", type="password")
+            
+            st.write("**Configuración de Envío**")
+            email_remitente = st.text_input("Email Remitente", value="noreply@iujo.edu.ve")
+            nombre_remitente = st.text_input("Nombre Remitente", value="SICADFOC 2026")
+            
+            submit_button = st.form_submit_button("💾 Guardar Configuración de Correo")
+            
+            if submit_button:
+                st.success("✅ Configuración de correo guardada exitosamente")
+    
+    with tab3:
+        st.subheader("🎨 Configuración de Interfaz")
+        
+        with st.form("form_interfaz"):
+            st.write("**Apariencia**")
+            
+            tema = st.selectbox("Tema", ["Claro", "Oscuro", "Automático"])
+            idioma = st.selectbox("Idioma", ["Español", "Inglés"])
+            
+            st.write("**Notificaciones**")
+            notificaciones_escritorio = st.checkbox("Notificaciones de Escritorio", value=True)
+            sonido_alertas = st.checkbox("Sonido de Alertas", value=False)
+            
+            st.write("**Rendimiento**")
+            cache_habilitado = st.checkbox("Habilitar Cache", value=True)
+            
+            if cache_habilitado:
+                tiempo_cache = st.number_input("Tiempo de Cache (minutos)", min_value=5, max_value=120, value=30)
+            
+            submit_button = st.form_submit_button("💾 Guardar Configuración de Interfaz")
+            
+            if submit_button:
+                st.success("✅ Configuración de interfaz guardada exitosamente")
+                st.info("🔄 Algunos cambios pueden requerir recargar la página")
+    
+    with tab4:
+        st.subheader("🌐 Configuración del Sistema")
+        
+        with st.form("form_sistema"):
+            st.write("**Configuración General**")
+            
+            modo_mantenimiento = st.checkbox("Modo Mantenimiento")
+            mensaje_mantenimiento = st.text_area("Mensaje de Mantenimiento", 
+                                                value="Sistema en mantenimiento. Volvemos pronto.")
+            
+            st.write("**Copias de Seguridad**")
+            backup_automatico = st.checkbox("Backup Automático", value=True)
+            
+            if backup_automatico:
+                frecuencia_backup = st.selectbox("Frecuencia", ["Diario", "Semanal", "Mensual"])
+                hora_backup = st.time_input("Hora de Backup", value=datetime.strptime("02:00", "%H:%M").time())
+            
+            st.write("**Límites del Sistema**")
+            max_usuarios = st.number_input("Máximo de Usuarios", min_value=100, max_value=10000, value=1000)
+            max_archivos = st.number_input("Tamaño Máximo de Archivos (MB)", min_value=1, max_value=100, value=50)
+            
+            submit_button = st.form_submit_button("💾 Guardar Configuración del Sistema")
+            
+            if submit_button:
+                st.success("✅ Configuración del sistema guardada exitosamente")
+                st.warning("⚠️ Algunos cambios requieren reiniciar el sistema")
+
+def mostrar_banner_informativo():
+    """Muestra información del sistema sin banner (eliminado)"""
+    st.markdown("---")
     
     # Grid de información
     st.markdown("### 📊 Información del Sistema")

@@ -110,3 +110,27 @@ cache/
 # Archivos de configuración específicos
 config_local.py
 secrets.json
+
+# Reportes y debug de desarrollo
+REPORTE_*.txt
+reporte_*.json
+debug_*.py
+error_screenshot_*.png
+tests_e2e_*.py
+login_*.py
+
+# Archivos temporales del proyecto
+finalizar_reestructuracion.py
+RESUMEN_REESTRUCTURACION.txt
+reporte_reestructuracion.json
+ARCHIVOS_PARA_GITHUB.txt
+INSTRUCCIONES_GITHUB.md
+
+# Backups temporales del proyecto
+backups/
+backup_*/
+data/
+expedientes/
+expedientes_pdf/
+formacion_complementaria/
+backup_2026_04_01/
