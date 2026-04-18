@@ -1,0 +1,36 @@
+# Framework principal
+streamlit==1.40.1
+
+# Base de datos
+psycopg2-binary==2.9.9
+SQLAlchemy==2.0.32
+python-dotenv==1.0.1
+
+# Servidor de producción (Render)
+gunicorn==23.0.0
+
+# Procesamiento de datos
+pandas==2.2.3
+numpy==1.26.4
+
+# Imágenes y multimedia
+Pillow==10.4.0
+qrcode==7.4.2
+openpyxl==3.1.3
+
+# Utilidades
+requests==2.32.3
+certifi==2024.8.30
+urllib3==2.2.3
+charset-normalizer==3.4.0
+idna==3.10
+python-dateutil==2.9.0.post0
+pytz==2024.2
+tzdata==2024.2
+
+# Desarrollo y testing (actualmente no referenciadas en el código fuente)
+# watchdog==5.0.3
+# gitpython==4.0.2
+
+# Manejo de fechas y tiempos
+six==1.16.0
