@@ -1,0 +1,5 @@
+# -*- coding: UTF-8 -*-
+streamlit
+psycopg2-binary
+python-dotenv
+pandas
