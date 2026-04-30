@@ -1,0 +1,60 @@
+# =====================================================
+# SICADFOC 2026 - Render Deployment Configuration
+# Web Service Configuration for Streamlit Application
+# Created: 28/04/2026
+# =====================================================
+
+services:
+  # Streamlit Web Service
+  - type: web
+    name: sicadfoc-2026
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run main.py --server.port $PORT --server.address 0.0.0.0
+    healthCheckPath: /
+    
+    # Environment Variables
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false  # Will be configured in Render dashboard
+      - key: STREAMLIT_SERVER_PORT
+        value: $PORT
+      - key: STREAMLIT_SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: true
+      - key: STREAMLIT_SERVER_ENABLE_CORS
+        value: false
+      - key: STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION
+        value: false
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: false
+      - key: STREAMLIT_LOGGER_LEVEL
+        value: info
+      - key: PYTHONUNBUFFERED
+        value: 1
+    
+    # Auto-deploy from main branch
+    autoDeploy: true
+    
+    # Build and runtime optimization
+    buildContext: .
+    rootDir: .
+    
+    # Health check configuration
+    healthCheck:
+      path: /
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    
+    # Resource limits (free tier)
+    resources:
+      memory: 512Mi
+      cpu: 0.25
