@@ -1,0 +1,32 @@
+# SICADFOC 26 - Requirements para Despliegue en Render
+# Versión optimizada para producción
+
+# Core Framework
+streamlit==1.39.0
+
+# Database
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+
+# Image Processing & OCR
+Pillow==10.3.0
+pytesseract==0.3.13
+opencv-python==4.9.0.80
+
+# Security & Authentication
+bcrypt==4.2.0
+
+# Utilities
+python-dateutil==2.9.0.post0
+urllib3==2.2.2
+
+# Logging & Monitoring
+logging==0.4.9.6
+
+# Development Tools (opcional para desarrollo local)
+pytest==8.3.2
+black==24.8.0
