@@ -1,0 +1,23 @@
+# SICADFOC 26 - Requirements con binarios pre-compilados
+# Versión optimizada para evitar compilación en Render
+
+# Core Framework (headless para producción)
+streamlit
+
+# Database (crucial que sea -binary para evitar compilación)
+psycopg2-binary
+python-dotenv
+
+# Data Processing (versiones ligeras y compatibles)
+pandas
+numpy
+
+# Image Processing & OCR
+pytesseract
+pillow
+
+# Security & Authentication
+bcrypt
+
+# Additional modules for certifications
+qrcode
