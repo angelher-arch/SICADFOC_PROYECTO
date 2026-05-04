@@ -1,0 +1,50 @@
+# SICADFOC 26 - Configuración Render con Docker
+# Optimizado para despliegue con Dockerfile personalizado
+
+services:
+  # Servicio principal de la aplicación
+  - type: web
+    name: sicadfoc26
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /_stcore/health
+    envVars:
+      # Variables de entorno para producción
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
+        type: secret
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_LOG_LEVEL
+        value: "WARNING"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+    # Configuración de recursos
+    disk:
+      name: sicadfoc26-disk
+      sizeGB: 10
+      mountPath: /app/media
+    # Configuración de red
+    networkAllowedPorts:
+      - 8501
+
+# Configuración de construcción
+build:
+  dockerfilePath: ./Dockerfile
+  dockerContext: ./
+  
+# Configuración de salud
+healthCheck:
+  http:
+    path: /_stcore/health
+    port: 8501
+    checkIntervalSec: 30
+    timeoutSec: 10
+    failureThreshold: 3
+    successThreshold: 1
