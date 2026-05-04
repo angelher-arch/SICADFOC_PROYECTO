@@ -52,14 +52,23 @@ def _configurar_tesseract_bajo_demanda():
         except Exception:
             pass  # Continuar en silencio absoluto
         
-        # Configurar ruta automáticamente para producción (Linux/Render)
-        rutas_posibles = [
-            '/usr/bin/tesseract',  # Ruta estándar en Docker/Render
-            '/usr/local/bin/tesseract',
-            r'C:\Program Files\Tesseract-OCR\tesseract.exe',  # Windows
-            r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
-            r'C:\Tesseract-OCR\tesseract.exe'
-        ]
+        # Detectar sistema operativo y configurar ruta OCR automáticamente
+        import platform
+        sistema = platform.system()
+        
+        if sistema == 'Linux':
+            # Docker/Render - usar ruta estándar de Linux
+            rutas_posibles = [
+                '/usr/bin/tesseract',  # Ruta estándar en Docker/Render
+                '/usr/local/bin/tesseract'
+            ]
+        else:
+            # Windows - usar rutas de Windows
+            rutas_posibles = [
+                r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+                r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+                r'C:\Tesseract-OCR\tesseract.exe'
+            ]
         
         for ruta in rutas_posibles:
             ruta_expandida = os.path.expandvars(ruta)
@@ -69,17 +78,18 @@ def _configurar_tesseract_bajo_demanda():
                     TESSERACT_VERSION = pytesseract.get_tesseract_version()
                     OCR_AVAILABLE = True
                     TESSERACT_PATH = ruta_expandida
-                    print(f"✅ OCR Tesseract {TESSERACT_VERSION} configurado en: {ruta_expandida}")
+                    # Silenciar logs en producción
                     return
                 except Exception:
                     continue
         
-        print("⚠️ Tesseract no disponible para procesamiento OCR")
+        # Silenciar mensajes de error en producción
+        OCR_AVAILABLE = False
         
     except ImportError:
-        print("⚠️ pytesseract no instalado - OCR no disponible")
+        OCR_AVAILABLE = False
     except Exception as e:
-        print(f"⚠️ Error configurando OCR: {e}")
+        OCR_AVAILABLE = False
 
 # NO inicializar Tesseract al cargar módulo - solo bajo demanda
 # _configurar_tesseract_bajo_demanda() se llamará solo cuando se necesite OCR
