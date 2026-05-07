@@ -496,7 +496,7 @@ class DatabaseManager:
                     # Si falla la validación, crear nueva conexión
                     _self._connection = None
             
-            # Crear nueva conexión con SSL adaptable según ambiente
+            # Crear nueva conexión con SSL adaptable según ambiente y pool_pre_ping
             ssl_mode = _self.config.get('sslmode', 'prefer')
             connection_params = {
                 'host': _self.config['host'],
@@ -505,7 +505,9 @@ class DatabaseManager:
                 'user': _self.config['user'],
                 'password': _self.config['password'],
                 'cursor_factory': RealDictCursor,
-                'sslmode': ssl_mode  # Adaptable: require para producción, prefer para desarrollo
+                'sslmode': ssl_mode,  # Adaptable: require para producción, prefer para desarrollo
+                'pool_pre_ping': True,  # Asegura conexión viva
+                'isolation_level': 'AUTOCOMMIT'  # Previene conflicto de transacciones
             }
             
             print(f"DEBUG_DB: Conectando a {_self.config['host']}:{_self.config['port']}/{_self.config['database']} con SSL mode {ssl_mode}")
@@ -602,8 +604,9 @@ class DatabaseManager:
                 results = cursor.fetchall()
                 return [self._row_to_dict(row, cursor.description) for row in results]
             else:
-                # Persistir explícitamente operaciones de escritura
-                conn.commit()
+                # Persistir explícitamente operaciones de escritura (solo si no es AUTOCOMMIT)
+                if _self.config.get('environment') != 'production':
+                    conn.commit()
                 return cursor.rowcount
                 
         except OperationalError as e:
@@ -632,12 +635,20 @@ class DatabaseManager:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            # Iniciar transacción
+            # Iniciar transacción (manejo compatible con AUTOCOMMIT)
+            if _self.config.get('environment') == 'production':
+                # En producción con AUTOCOMMIT, usar BEGIN explícito
+                cursor.execute("BEGIN")
+            
             for query, params in queries:
                 cursor.execute(query, params or ())
             
-            # Commit
-            conn.commit()
+            # Commit (solo en desarrollo, en producción AUTOCOMMIT maneja)
+            if _self.config.get('environment') != 'production':
+                conn.commit()
+            else:
+                cursor.execute("COMMIT")
+            
             logger.info(f"Transacción completada exitosamente ({len(queries)} consultas)")
             return {
                 'success': True,

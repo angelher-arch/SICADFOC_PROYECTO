@@ -114,14 +114,14 @@ def login_sesion(cedula: str, password: str):
         if db is None:
             return None
         
-        # 5. Generar hash
+        # 5. Generar hash compatible con bcrypt
         hash_password = hashlib.sha256(password.encode()).hexdigest()
         
-        # 6. Consulta directa a base de datos
+        # 6. Consulta directa a base de datos (usando password_hash correcto)
         query = """
-        SELECT cedula_usuario, login_usuario, contrasena, rol, activo 
+        SELECT cedula_usuario, login_usuario, password_hash, rol, activo 
         FROM usuarios 
-        WHERE cedula_usuario = %s AND contrasena = %s
+        WHERE cedula_usuario = %s AND password_hash = %s
         """
         
         from db_manager import get_database_manager
