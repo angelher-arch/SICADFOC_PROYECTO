@@ -1496,15 +1496,17 @@ def authenticate_user(username, password):
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
         normalized_username = cleaned_username.upper()
-        if normalized_username.isdigit():
-            normalized_username = f"V-{normalized_username}"
+        # No agregar V- para cédulas numéricas, buscar directamente
+        if normalized_username.startswith("V-"):
+            # Mantener V- si ya viene con ese formato
+            pass
         elif normalized_username.startswith(("V", "E")) and "-" not in normalized_username and normalized_username[1:].isdigit():
             normalized_username = f"{normalized_username[0]}-{normalized_username[1:]}"
 
         hashed_password = hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
         query = """
-        SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo, u.contrasena,
+        SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo, u.password_hash,
                p.nombre, p.apellido, p.telefono, p.direccion
         FROM usuarios u
         LEFT JOIN persona p ON u.cedula_usuario = p.cedula
@@ -1521,7 +1523,7 @@ def authenticate_user(username, password):
         if not user_row:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-        stored_password = str(user_row.get('contrasena', '')).strip()
+        stored_password = str(user_row.get('password_hash', '')).strip()
         password_ok = (stored_password == hashed_password) or (stored_password == str(password))
         if not password_ok:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
