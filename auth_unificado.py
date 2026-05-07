@@ -27,8 +27,20 @@ class AuthSystemUnificado:
         
     def validar_cedula(self, cedula):
         """Validar formato de cédula venezolana"""
+        cedula_normalizada = self.normalizar_cedula(cedula)
         pattern = r'^[VE]-\d{7,8}$'
-        return re.match(pattern, cedula.upper()) is not None
+        return re.match(pattern, cedula_normalizada) is not None
+
+    def normalizar_cedula(self, cedula):
+        """Normalizar cédula para aceptar formatos comunes del usuario."""
+        if not cedula:
+            return ""
+        raw = cedula.strip().upper().replace(" ", "")
+        if re.fullmatch(r'\d{7,8}', raw):
+            return f"V-{raw}"
+        if re.fullmatch(r'[VE]\d{7,8}', raw):
+            return f"{raw[0]}-{raw[1:]}"
+        return raw
     
     def validar_email(self, email):
         """Validar formato de email"""
@@ -75,65 +87,57 @@ class AuthSystemUnificado:
     def registrar_usuario(self, datos_usuario):
         """Registrar nuevo usuario en la base de datos"""
         try:
-            with execute_transaction() as conn:
-                # Insertar en tabla usuarios
-                query_usuarios = """
-                INSERT INTO usuarios (
-                    cedula_usuario, 
-                    login_usuario, 
-                    contrasena, 
-                    rol, 
-                    email, 
-                    activo, 
-                    fecha_creacion
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """
-                
-                params_usuarios = (
-                    datos_usuario['cedula'],
-                    datos_usuario['login'],
-                    datos_usuario['password_hash'],
-                    datos_usuario['rol'],
-                    datos_usuario['email'],
-                    True,
-                    datetime.now()
-                )
-                
-                conn.execute(query_usuarios, params_usuarios)
-                
-                # Insertar en tabla persona si hay datos personales
-                if datos_usuario.get('nombre_completo'):
-                    nombre_parts = datos_usuario['nombre_completo'].split()
-                    nombre = nombre_parts[0] if nombre_parts else ''
-                    apellido = ' '.join(nombre_parts[1:]) if len(nombre_parts) > 1 else ''
-                    
-                    query_persona = """
-                    INSERT INTO persona (
-                        cedula, 
-                        nombre, 
-                        apellido, 
-                        email_personal,
-                        fecha_creacion
-                    ) VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (cedula) DO UPDATE SET
-                        nombre = EXCLUDED.nombre,
-                        apellido = EXCLUDED.apellido,
-                        email_personal = EXCLUDED.email_personal,
-                        fecha_creacion = EXCLUDED.fecha_creacion
-                    """
-                    
-                    params_persona = (
-                        datos_usuario['cedula'],
-                        nombre,
-                        apellido,
-                        datos_usuario['email'],
-                        datetime.now()
-                    )
-                    
-                    conn.execute(query_persona, params_persona)
-                
-                return True, "Usuario registrado exitosamente"
-                
+            # Insertar usuario y persona en una sola transacción.
+            query_usuarios = """
+            INSERT INTO usuarios (
+                cedula_usuario,
+                login_usuario,
+                contrasena,
+                rol,
+                activo
+            ) VALUES (%s, %s, %s, %s, %s)
+            """
+
+            params_usuarios = (
+                datos_usuario['cedula'],
+                datos_usuario['login'],
+                datos_usuario['password_hash'],
+                datos_usuario['rol'],
+                True
+            )
+
+            nombre_partes = datos_usuario['nombre_completo'].split()
+            nombre = nombre_partes[0] if nombre_partes else datos_usuario['nombre_completo']
+            apellido = " ".join(nombre_partes[1:]) if len(nombre_partes) > 1 else "N/A"
+
+            query_persona = """
+            INSERT INTO persona (
+                cedula,
+                nombre,
+                apellido,
+                email_personal
+            ) VALUES (%s, %s, %s, %s)
+            ON CONFLICT (cedula) DO UPDATE
+            SET nombre = EXCLUDED.nombre,
+                apellido = EXCLUDED.apellido,
+                email_personal = EXCLUDED.email_personal
+            """
+
+            params_persona = (
+                datos_usuario['cedula'],
+                nombre,
+                apellido,
+                datos_usuario['email']
+            )
+
+            result = execute_transaction([
+                (query_usuarios, params_usuarios),
+                (query_persona, params_persona)
+            ])
+            if not result.get('success', False):
+                return False, result.get('message', 'Error al crear usuario')
+
+            return True, "Usuario registrado exitosamente"
         except Exception as e:
             return False, f"Error registrando usuario: {str(e)}"
     
@@ -179,7 +183,9 @@ class AuthSystemUnificado:
                         st.error("❌ Por favor ingrese usuario y contraseña")
                     else:
                         with st.spinner("Autenticando..."):
+                            print(f"DEBUG_AUTH: Intentando autenticar usuario: {username}")
                             result = authenticate_user(username, password)
+                            print(f"DEBUG_AUTH: Resultado authenticate_user: {result}")
                         
                         if result and result.get('success', False):
                             st.success("✅ ¡Bienvenido al sistema!")
@@ -317,11 +323,12 @@ class AuthSystemUnificado:
                 if not nombre_completo.strip():
                     errores.append("El nombre completo es requerido")
                 
+                cedula_normalizada = self.normalizar_cedula(cedula)
                 if not cedula.strip():
                     errores.append("La cédula de identidad es requerida")
-                elif not self.validar_cedula(cedula):
+                elif not self.validar_cedula(cedula_normalizada):
                     errores.append("Formato de cédula inválido. Use V-12345678 o E-12345678")
-                elif self.verificar_cedula_existente(cedula.upper()):
+                elif self.verificar_cedula_existente(cedula_normalizada):
                     errores.append("La cédula ya está registrada")
                 
                 if not email.strip():
@@ -354,9 +361,9 @@ class AuthSystemUnificado:
                     # Preparar datos (usando cédula como login)
                     datos_usuario = {
                         'nombre_completo': nombre_completo.strip(),
-                        'cedula': cedula.upper().strip(),
+                        'cedula': cedula_normalizada,
                         'email': email.strip().lower(),
-                        'login': cedula.upper().strip(),  # Usar cédula como login
+                        'login': cedula_normalizada,  # Usar cédula como login
                         'password_hash': self.hash_password(password),
                         'rol': rol
                     }

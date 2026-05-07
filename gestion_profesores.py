@@ -24,6 +24,7 @@ class GestionProfesores:
     
     def gestion_profesores(self):
         """Función principal del módulo de gestión de profesores"""
+        print(">>> PROFESORES: Iniciando gestión de profesores")
         try:
             # Validar permisos de acceso
             if not tiene_permiso(self.user_role, 'Gestión Profesores', 'Consultar'):
@@ -629,10 +630,16 @@ class GestionProfesores:
 
 def gestion_profesores_main():
     """Función principal del módulo de gestión de profesores"""
+    print(">>> PROFESORES_MAIN: Iniciando función principal")
     try:
         gestor = GestionProfesores()
+        print(">>> PROFESORES_MAIN: Instancia creada, llamando a gestión_profesores()")
         gestor.gestion_profesores()
+        print(">>> PROFESORES_MAIN: gestión_profesores() completada")
     except Exception as e:
+        print(f">>> ERROR PROFESORES_MAIN: {e}")
+        import traceback
+        print(f">> ERROR PROFESORES_MAIN: Traceback - {traceback.format_exc()}")
         st.error(f"Error en el módulo de gestión de profesores: {e}")
 
 def registro_profesores_main():

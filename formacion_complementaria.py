@@ -8,7 +8,8 @@ import io
 
 @st.cache_data(ttl=3600)  # Cache por 1 hora para consultas estáticas
 def obtener_lista_profesores_cache():
-    """Obtener lista de profesores con cache"""
+    """Obtener lista de profesores con cache - ESQUEMA UNIFICADO db_foc26"""
+    print(">> FORMACION: Obteniendo lista de profesores (conexión unificada)")
     try:
         from database import execute_query
         query = """
@@ -19,8 +20,11 @@ def obtener_lista_profesores_cache():
         WHERE u.rol = 'Profesor' AND u.activo = true
         ORDER BY p.apellido, p.nombre
         """
-        return execute_query(query)
-    except Exception:
+        result = execute_query(query)
+        print(f">> FORMACION: Profesores obtenidos - {len(result) if isinstance(result, list) else 1}")
+        return result
+    except Exception as e:
+        print(f">> ERROR FORMACION: {e}")
         return []
 
 @st.cache_data(ttl=3600)  # Cache por 1 hora para tipos de talleres

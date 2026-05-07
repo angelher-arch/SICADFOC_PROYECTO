@@ -8,6 +8,7 @@ Version 3.0 - Arquitectura Unificada Local/Nube
 import streamlit as st  # type: ignore
 import logging
 import sys
+import datetime
 import locale
 import os
 
@@ -355,24 +356,74 @@ def validar_esquema_principal():
         return False
 
 # IMPORTACIONES DE MÓDULOS PRINCIPALES
+print(">>> IMPORTANDO MÓDULOS PRINCIPALES...")
 try:
+    print(">>> Importando auth_unificado...")
     from auth_unificado import AuthSystemUnificado, gestion_usuarios_main, registro_usuario_main
+    print(">>> auth_unificado importado correctamente")
+    
+    print(">>> Importando seguridad...")
     from seguridad import tiene_permiso, SeguridadFOC26
+    print(">>> seguridad importado correctamente")
+    
+    print(">>> Importando gestion_estudiantil...")
     from gestion_estudiantil import gestion_estudiantil_main
+    print(">>> gestion_estudiantil importado correctamente")
+    
+    print(">>> Importando gestion_profesores...")
     from gestion_profesores import gestion_profesores_main
+    print(">>> gestion_profesores importado correctamente")
+    
+    print(">>> Importando formacion_complementaria...")
     from formacion_complementaria import modulo_formacion_complementaria
+    print(">>> formacion_complementaria importado correctamente")
+    
+    print(">>> Importando inscripciones...")
     from inscripciones import inscripciones_main
+    print(">>> inscripciones importado correctamente")
+    
+    print(">>> Importando gestor_certificaciones...")
     from gestor_certificaciones import gestor_certificaciones_unificado
+    print(">>> gestor_certificaciones importado correctamente")
+    
+    print(">>> Importando editor_certificados...")
     from editor_certificados import editor_certificados_main
+    print(">>> editor_certificados importado correctamente")
+    
+    print(">>> Importando reportes...")
     from reportes import reportes
+    print(">>> reportes importado correctamente")
+    
+    print(">>> Importando gestion_permisos...")
     from gestion_permisos import gestion_permisos
+    print(">>> gestion_permisos importado correctamente")
+    
+    print(">>> Importando gestion_carreras...")
     from gestion_carreras import gestion_carreras
+    print(">>> gestion_carreras importado correctamente")
+    
+    print(">>> Importando solicitud_formacion...")
     from solicitud_formacion import solicitud_formacion_main
+    print(">>> solicitud_formacion importado correctamente")
+    
+    print(">>> Importando gestion_solicitudes...")
     from gestion_solicitudes import gestion_solicitudes_main
+    print(">>> gestion_solicitudes importado correctamente")
+    
+    print(">>> Importando formacion_extemporanea...")
     from formacion_extemporanea import formacion_extemporanea_main
+    print(">>> formacion_extemporanea importado correctamente")
+    
+    print(">>> Importando configuracion...")
     from configuracion import configuracion_main
+    print(">>> configuracion importado correctamente")
+    
+    print(">>> TODOS LOS MÓDULOS IMPORTADOS CORRECTAMENTE")
+    
 except ImportError as e:
-    print(f"DEBUG_ERROR: ImportError al cargar módulos - {e}")
+    print(f">>> ERROR CRÍTICO: ImportError al cargar módulos - {e}")
+    import traceback
+    print(f">>> ERROR CRÍTICO: Traceback - {traceback.format_exc()}")
     st.error(f"Error al cargar el sistema: {e}")
     st.error("Por favor contacte al administrador")
     sys.exit(1)
@@ -443,7 +494,7 @@ def conectar_foc26db():
     try:
         if debug_mode:
             st.write("=== MODO DEBUG: CONEXIÓN A FOC26DB ===")
-            st.write(f"Timestamp: {datetime.now().isoformat()}")
+            st.write(f"Timestamp: {datetime.datetime.now().isoformat()}")
             st.write(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
         
         # Usar database.py como Single Source of Truth
@@ -482,8 +533,8 @@ def verificar_usuario(usuario_input, clave_input):
                 
         # Usar autenticación segura con database.py
         resultado_auth = authenticate_user(cedula_limpia, clave_input)
-        
-        if resultado_auth:
+
+        if resultado_auth and resultado_auth.get('success', False):
             # Construir resultado compatible con formato esperado
             resultado = {
                 'success': True,
@@ -499,7 +550,7 @@ def verificar_usuario(usuario_input, clave_input):
         else:
             resultado = {
                 'success': False,
-                'message': 'Usuario o contraseña incorrectos'
+                'message': (resultado_auth or {}).get('message', 'Usuario o contraseña incorrectos')
             }
         
         if resultado['success']:
@@ -642,18 +693,25 @@ def main():
                 # Verificar conexión antes de permitir registro
                 connection_ok = False
                 try:
+                    print("DEBUG_REGISTRO: Iniciando verificación de conexión...")
                     from database import test_database_connection
                     result = test_database_connection()
+                    print(f"DEBUG_REGISTRO: Resultado de test_connection: {result}")
                     connection_ok = result and result.get('status', False)
                     print(f"DEBUG_REGISTRO: Conexión verificada - Status: {connection_ok}")
+                    print(f"DEBUG_REGISTRO: Mensaje: {result.get('message', 'No message') if result else 'No result'}")
                 except Exception as e:
                     print(f"DEBUG_REGISTRO_ERROR: Error verificando conexión - {e}")
+                    import traceback
+                    print(f"DEBUG_REGISTRO_ERROR: Traceback: {traceback.format_exc()}")
                     connection_ok = False
                 
                 # Solo permitir registro si hay conexión
                 if connection_ok:
                     # Mostrar formulario de registro
+                    print("DEBUG_REGISTRO: Llamando a registro_usuario_main()...")
                     registro_usuario_main()
+                    print("DEBUG_REGISTRO: registro_usuario_main() completado")
                 else:
                     st.error("No se puede registrar usuarios sin conexión a la base de datos")
         
@@ -666,8 +724,10 @@ def main():
                 user_info = st.session_state.get('user', {})
                 st.markdown(f"### {user_info.get('login_usuario', 'Usuario')}")
                 st.caption(f"Rol: {st.session_state.get('user_role', 'N/A')}")
+                print(f"DEBUG_LOGIN: Usuario logueado - {user_info.get('login_usuario', 'Usuario')} - Rol: {st.session_state.get('user_role', 'N/A')}")
             else:
                 st.markdown("### Sistema")
+                print("DEBUG_LOGIN: No hay usuario logueado")
             
             # Verificar conexión de forma silenciosa
             connection_ok = False
@@ -854,19 +914,28 @@ def main():
             
             if tiene_acceso:
                 # Router de navegación optimizado - Ejecución selectiva por módulo
+                print(f"DEBUG_MODULO: Ejecutando módulo: {st.session_state.modulo_actual}")
+                
                 if st.session_state.modulo_actual == "Reportes":
+                    print("DEBUG_MODULO: Llamando a reportes()")
                     reportes()
                 elif st.session_state.modulo_actual == "Formación Complementaria Extemporánea":
+                    print("DEBUG_MODULO: Llamando a formacion_extemporanea_main()")
                     formacion_extemporanea_main()
                 elif st.session_state.modulo_actual == "Gestión Estudiantil":
+                    print("DEBUG_MODULO: Llamando a gestion_estudiantil_main()")
                     gestion_estudiantil_main()
                 elif st.session_state.modulo_actual == "Gestión Profesores":
+                    print("DEBUG_MODULO: Llamando a gestion_profesores_main()")
                     gestion_profesores_main()
                 elif st.session_state.modulo_actual == "Formación Complementaria":
+                    print("DEBUG_MODULO: Llamando a modulo_formacion_complementaria()")
                     modulo_formacion_complementaria()
                 elif st.session_state.modulo_actual == "Inscripciones":
+                    print("DEBUG_MODULO: Llamando a inscripciones_main()")
                     inscripciones_main()
                 elif st.session_state.modulo_actual == "Editor de Certificados":
+                    print("DEBUG_MODULO: Llamando a editor_certificados_main()")
                     editor_certificados_main()
                 elif st.session_state.modulo_actual == "Gestión Usuarios":
                     gestion_usuarios_main()

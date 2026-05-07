@@ -349,26 +349,33 @@ class GestionSolicitudes:
                 st.error("No hay cupos disponibles en este taller")
                 return
             
-            # Ejecutar transacción
-            query_transaccion = """
-            -- Actualizar solicitud
-            UPDATE solicitudes_formacion 
-            SET estado = 'Aprobada', 
-                fecha_resolucion = CURRENT_TIMESTAMP,
-                resuelto_por = %s
-            WHERE id_solicitud = %s;
+            # Ejecutar transacción atómica (actualizar solicitud + crear/actualizar inscripción)
+            transaccion_queries = [
+                (
+                    """
+                    UPDATE solicitudes_formacion 
+                    SET estado = 'Aprobada', 
+                        fecha_resolucion = CURRENT_TIMESTAMP,
+                        resuelto_por = %s
+                    WHERE id_solicitud = %s
+                    """,
+                    (self.user_cedula, id_solicitud)
+                ),
+                (
+                    """
+                    INSERT INTO inscripcion (cedula_estudiante, id_formacion, fecha_inscripcion, estado)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, 'Activa')
+                    ON CONFLICT (cedula_estudiante, id_formacion) 
+                    DO UPDATE SET estado = 'Activa', fecha_inscripcion = CURRENT_TIMESTAMP
+                    """,
+                    (solicitud['cedula_estudiante'], solicitud['id_formacion'])
+                )
+            ]
             
-            -- Crear inscripción
-            INSERT INTO inscripcion (cedula_estudiante, id_formacion, fecha_inscripcion, estado)
-            VALUES (%s, %s, CURRENT_TIMESTAMP, 'Activa')
-            ON CONFLICT (cedula_estudiante, id_formacion) 
-            DO UPDATE SET estado = 'Activa', fecha_inscripcion = CURRENT_TIMESTAMP;
-            """
-            
-            ejecutar_transaccion(query_transaccion, (
-                self.user_cedula, id_solicitud,
-                solicitud['cedula_estudiante'], solicitud['id_formacion']
-            ))
+            resultado_tx = ejecutar_transaccion(transaccion_queries)
+            if not resultado_tx.get('success'):
+                st.error("No se pudo aprobar la solicitud por un error de transacción")
+                return
             
             st.success("✅ Solicitud aprobada exitosamente")
             st.rerun()

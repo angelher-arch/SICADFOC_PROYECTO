@@ -24,6 +24,7 @@ class GestionEstudiantil:
     
     def gestion_estudiantil(self):
         """Función principal del módulo de gestión estudiantil"""
+        print("DEBUG_ESTUDIANTIL: Iniciando gestión estudiantil")
         try:
             # Validar permisos de acceso
             if not tiene_permiso(self.user_role, 'Gestión Estudiantil', 'Consultar'):
@@ -80,7 +81,9 @@ class GestionEstudiantil:
             """
             
             # Ejecutar consulta única
+            print(f"DEBUG_ESTUDIANTIL_DB: Ejecutando consulta de estudiantes...")
             result = execute_query(query, fetch_all=True)
+            print(f"DEBUG_ESTUDIANTIL_DB: Resultado: {len(result) if result else 0} estudiantes encontrados")
             
             if result and len(result) > 0:
                 # Convertir a DataFrame
@@ -363,8 +366,14 @@ class GestionEstudiantil:
 # Función principal para compatibilidad
 def gestion_estudiantil_main():
     """Función principal para el módulo de gestión estudiantil"""
+    print("DEBUG_ESTUDIANTIL_MAIN: Iniciando función principal")
     try:
         gestion = GestionEstudiantil()
+        print("DEBUG_ESTUDIANTIL_MAIN: Instancia creada, llamando a gestión_estudiantil()")
         gestion.gestion_estudiantil()
+        print("DEBUG_ESTUDIANTIL_MAIN: gestión_estudiantil() completada")
     except Exception as e:
+        print(f"DEBUG_ESTUDIANTIL_ERROR: Error en módulo: {e}")
+        import traceback
+        print(f"DEBUG_ESTUDIANTIL_ERROR: Traceback: {traceback.format_exc()}")
         st.error(f"Error al iniciar módulo de gestión estudiantil: {e}")

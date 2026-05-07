@@ -1,0 +1,4 @@
+# SICADFOC 26 - Python Runtime para Render
+# Versión compatible con todas las dependencias
+
+python-3.11.8

@@ -7,6 +7,7 @@ SICADFOC 2026 - Instituto Universitario Jesus Obrero
 
 import streamlit as st
 import pandas as pd
+import datetime
 from typing import Dict, List, Any
 from database import execute_query, ejecutar_transaccion
 from seguridad import tiene_permiso
