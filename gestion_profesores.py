@@ -66,15 +66,12 @@ class GestionProfesores:
                 p.cedula,
                 p.nombre,
                 p.apellido,
-                p.email_personal,
+                p.email,
                 p.telefono,
                 pr.especialidad,
-                pr.fecha_contratacion,
-                pr.activo,
-                u.login_usuario
+                pr.estado
             FROM profesor pr
-            JOIN persona p ON pr.cedula_profesor = p.cedula
-            LEFT JOIN usuarios u ON pr.cedula_profesor = u.cedula_usuario
+            LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
             ORDER BY p.apellido, p.nombre
             """
             
@@ -139,19 +136,32 @@ class GestionProfesores:
         try:
             from database import execute_query
             
+            # Obtener lista de profesores (solo columnas existentes)
+            profesores = execute_query("""
+                SELECT pr.cedula_profesor,
+                       p.nombre,
+                       p.apellido,
+                       p.email,
+                       p.telefono,
+                       pr.especialidad,
+                       pr.estado
+                FROM profesor pr
+                LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
+                ORDER BY p.apellido, p.nombre
+            """)
+            
             # Buscar profesor por cédula
             query = """
             SELECT 
                 p.cedula,
                 p.nombre,
                 p.apellido,
-                p.email_personal,
+                p.email,
                 p.telefono,
                 pr.especialidad,
-                pr.fecha_contratacion,
-                pr.activo
+                pr.estado
             FROM profesor pr
-            JOIN persona p ON pr.cedula_profesor = p.cedula
+            LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
             WHERE pr.cedula_profesor = %s
             """
             
@@ -172,7 +182,7 @@ class GestionProfesores:
                 with col1:
                     nombre = st.text_input("Nombre*", value=resultado['nombre'], key="edit_nombre_prof")
                     apellido = st.text_input("Apellido*", value=resultado['apellido'], key="edit_apellido_prof")
-                    email = st.text_input("Email", value=resultado['email_personal'], key="edit_email_prof")
+                    email = st.text_input("Email", value=resultado.get('email', ''), key="edit_email_prof")
                     telefono = st.text_input("Teléfono", value=resultado['telefono'], key="edit_telefono_prof")
                 
                 with col2:
@@ -202,7 +212,7 @@ class GestionProfesores:
                         update_queries = [
                             (
                                 """UPDATE persona SET 
-                                    nombre = %s, apellido = %s, email_personal = %s, telefono = %s 
+                                    nombre = %s, apellido = %s, email = %s, telefono = %s 
                                     WHERE cedula = %s""",
                                 (nombre, apellido, email, telefono, cedula)
                             ),
@@ -307,7 +317,7 @@ class GestionProfesores:
             queries = [
                 # Insertar usuario
                 (
-                    "INSERT INTO usuarios (cedula_usuario, login_usuario, rol, contrasena, activo, fecha_creacion) VALUES (%s, %s, 'Profesor', %s, TRUE, %s)",
+                    "INSERT INTO usuarios (cedula_usuario, login_usuario, rol, password_hash, activo, fecha_registro) VALUES (%s, %s, 'Profesor', %s, TRUE, %s)",
                     (cedula, nombre_completo, SeguridadFOC26.hash_password(password), datetime.now())
                 ),
                 # Insertar profesor

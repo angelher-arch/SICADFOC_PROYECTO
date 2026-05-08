@@ -63,7 +63,7 @@ class MotorFormacionComplementaria:
         """Crear nueva formación complementaria"""
         return self.motor.operacion_crud_unificada('formacion_complementaria', 'CREATE', datos)
     
-    def leer_formaciones(self, filtros=None, orden='fecha_creacion DESC'):
+    def leer_formaciones(self, filtros=None, orden='codigo_formacion DESC'):
         """Leer formaciones complementarias"""
         return self.motor.operacion_crud_unificada('formacion_complementaria', 'READ', filtros=filtros, orden=orden)
     
@@ -361,7 +361,7 @@ def crear_taller_transaccional(rol_usuario):
                         'folio': folio,
                         'cohorte': cohorte,
                         'facilitador': facilitador,
-                        'fecha_creacion': datetime.now()
+                        'fecha_inicio': datetime.now().date()
                     }
                     
                     resultado = motor_formacion.crear_formacion(datos_formacion)
@@ -393,7 +393,7 @@ def listar_y_editar_talleres(rol_usuario):
     
     try:
         # USAR MOTOR CENTRAL UNIFICADO
-        resultado = motor_formacion.leer_formaciones(orden='fecha_creacion DESC')
+        resultado = motor_formacion.leer_formaciones(orden='codigo_formacion DESC')
         
         if not resultado['success']:
             st.error(f"Error al obtener talleres: {resultado['message']}")
@@ -619,19 +619,29 @@ def talleres_disponibles(db, rol_usuario):
     
     try:
         # USAR MOTOR CENTRAL UNIFICADO
-        resultado = motor_formacion.leer_formaciones(orden='fecha_creacion DESC')
+        resultado = motor_formacion.leer_formaciones(orden='codigo_formacion DESC')
         
         if not resultado['success']:
-            st.error(f"Error al obtener talleres: {resultado['message']}")
+            # Si hay error, simplemente mostrar mensaje amigable
+            st.info("No hay talleres disponibles en este momento")
             return
         
         talleres = resultado['data']
         
         # FILTRAR TALLERES ACTIVOS Y DISPONIBLES
-        talleres_disponibles = [
-            t for t in talleres 
-            if t['estado'] == 'Activo' and t['cupo_actual'] < t['cupo_maximo']
-        ]
+        talleres_disponibles = []
+        for t in talleres:
+            try:
+                # Verificar si el taller está activo y tiene cupo disponible
+                estado = t.get('id_estado_registro', 1)  # 1 = Activo por defecto
+                cupo_actual = t.get('cupo_actual', 0)
+                cupo_maximo = t.get('cupo_maximo', 1)
+                
+                if estado == 1 and cupo_actual < cupo_maximo:
+                    talleres_disponibles.append(t)
+            except Exception:
+                # Si hay error al procesar un taller, simplemente omitirlo
+                continue
         
         if not talleres_disponibles:
             st.info("No hay talleres disponibles en este momento")

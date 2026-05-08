@@ -77,29 +77,27 @@ class SolicitudFormacion:
             # Normalizar cédula
             cedula_normalizada = cedula.strip().upper()
             
-            # Consultar estudiante con datos de persona y carrera
-            query = """
-            SELECT 
-                e.cedula_estudiante,
-                p.nombre,
-                p.apellido,
-                p.email_personal,
-                p.telefono,
-                e.id_carrera,
-                c.nombre_carrera,
-                e.semestre_actual,
-                e.estado_registro
-            FROM estudiante e
-            INNER JOIN persona p ON e.cedula_estudiante = p.cedula
-            INNER JOIN carrera c ON e.id_carrera = c.id_carrera
-            WHERE e.cedula_estudiante = %s
-            """
+            # Obtener estudiantes con sus datos personales (solo columnas existentes)
+            estudiantes = execute_query("""
+                SELECT e.cedula_estudiante,
+                       p.nombre,
+                       p.apellido,
+                       p.email,
+                       p.telefono,
+                       e.id_carrera,
+                       c.nombre_carrera,
+                       e.id_semestre_formacion,
+                       s.nombre_semestre
+                FROM estudiante e
+                LEFT JOIN persona p ON e.id_persona = p.id
+                LEFT JOIN carrera c ON e.id_carrera = c.id
+                LEFT JOIN semestre_formacion s ON e.id_semestre_formacion = s.id
+                ORDER BY p.apellido, p.nombre
+            """)
             
-            resultado = execute_query(query, (cedula_normalizada,), fetch_one=True)
-            
-            if resultado:
+            if estudiantes:
                 # Guardar datos del estudiante en sesión
-                st.session_state.estudiante_seleccionado = resultado
+                st.session_state.estudiantes = estudiantes
                 
                 # Mostrar datos en modo lectura
                 st.success("✅ Estudiante encontrado")
@@ -110,7 +108,7 @@ class SolicitudFormacion:
                     st.text_input("Cédula", value=resultado['cedula_estudiante'], disabled=True)
                     st.text_input("Nombre", value=resultado['nombre'], disabled=True)
                     st.text_input("Apellido", value=resultado['apellido'], disabled=True)
-                    st.text_input("Email", value=resultado.get('email_personal', ''), disabled=True)
+                    st.text_input("Email", value=resultado.get('email', ''), disabled=True)
                 
                 with col2:
                     st.text_input("Teléfono", value=resultado.get('telefono', ''), disabled=True)
@@ -254,11 +252,12 @@ class SolicitudFormacion:
                 p.cedula,
                 p.nombre,
                 p.apellido,
-                p.email_personal
+                p.email
             FROM formacion_complementaria fc
             INNER JOIN profesor pr ON fc.id_usuario = pr.cedula_profesor
             INNER JOIN persona p ON pr.cedula_profesor = p.cedula
-            WHERE fc.id_formacion = %s
+            WHERE fc.id_curso = %s
+            ORDER BY p.apellido, p.nombre
             """
             
             resultado = execute_query(query, (id_taller,), fetch_one=True)

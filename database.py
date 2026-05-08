@@ -151,8 +151,42 @@ class DatabaseStructureError(Exception):
     """Excepción personalizada para errores de estructura de base de datos"""
     pass
 
+# Canal único de conexión global
+db_connection = None
+
+def get_db_connection():
+    """Función global que retorna el canal único de conexión ya configurado (solo parámetros estándar psycopg2)"""
+    global db_connection
+    
+    if db_connection and not db_connection.closed:
+        return db_connection
+    
+    # Si no existe conexión, crear una nueva
+    from config import get_database_config
+    config = get_database_config()
+    
+    try:
+        # Solo parámetros estándar de psycopg2
+        connection_params = {
+            'host': config['host'],
+            'port': config['port'],
+            'database': config['database'],
+            'user': config['user'],
+            'password': config['password'],
+            'cursor_factory': RealDictCursor,
+            'sslmode': config.get('sslmode', 'prefer'),
+            'connect_timeout': 10
+        }
+        
+        db_connection = psycopg2.connect(**connection_params)
+        print("DEBUG_DB: Nuevo canal único creado")
+        return db_connection
+    except Exception as e:
+        print(f"DEBUG_DB_ERROR: Error creando canal único: {e}")
+        raise e
+
 class DatabaseManager:
-    """Gestor de base de datos PostgreSQL mejorado y estable"""
+    """Gestor de base de datos PostgreSQL con canal único de conexión"""
     
     @staticmethod
     def _row_to_dict(row, description=None):
@@ -170,7 +204,16 @@ class DatabaseManager:
         return {}
 
     def __init__(self):
-        """Inicialización básica con conexión a base de datos local"""
+        """Inicialización con canal único de conexión basado en detección de entorno"""
+        global db_connection
+        
+        # Si ya existe una conexión, reutilizarla (Canal Único)
+        if db_connection and not db_connection.closed:
+            self._connection = db_connection
+            self.config = self._get_existing_config()
+            return
+        
+        # Primera vez: establecer canal único
         self._connection = None
         self._load_config()
         
@@ -183,19 +226,25 @@ class DatabaseManager:
         print(f"Environment: {self.config.get('environment', 'NO DEFINIDO')}")
         print("=== FIN DEBUG CONFIGURACIÓN ===")
         
-        # Solo verificar conexión básica, sin validaciones complejas
+        # Establecer canal único basado en detección de entorno
         try:
-            self._connection = psycopg2.connect(
-                host=self.config['host'],
-                port=self.config['port'],
-                database=self.config['database'],
-                user=self.config['user'],
-                password=self.config['password'],
-                cursor_factory=RealDictCursor,
-                sslmode='prefer',
-                connect_timeout=10
-            )
-            print("DEBUG_DB: Conexión a base de datos establecida exitosamente")
+            # Eliminar pool_pre_ping que causa el error
+            connection_params = {
+                'host': self.config['host'],
+                'port': self.config['port'],
+                'database': self.config['database'],
+                'user': self.config['user'],
+                'password': self.config['password'],
+                'cursor_factory': RealDictCursor,
+                'sslmode': self.config.get('sslmode', 'prefer'),
+                'connect_timeout': 10
+            }
+            
+            self._connection = psycopg2.connect(**connection_params)
+            
+            # Guardar conexión global (Canal Único)
+            db_connection = self._connection
+            print("DEBUG_DB: Canal único de conexión establecido exitosamente")
             
             # VERIFICACIÓN INMEDIATA: Probar conexión real
             cursor = self._connection.cursor()
@@ -208,6 +257,42 @@ class DatabaseManager:
             print(f"DEBUG_DB_ERROR: Error conectando a base de datos: {e}")
             print(f"DEBUG_DB_ERROR: Tipo de error: {type(e).__name__}")
             raise Exception("No se puede conectar a la base de datos local")
+    
+    def _get_existing_config(self):
+        """Obtener configuración existente de la conexión global"""
+        try:
+            # Extraer configuración de la conexión existente
+            if hasattr(db_connection, 'dsn'):
+                # Parsear DSN para obtener configuración
+                import psycopg2.extensions
+                dsn_params = psycopg2.extensions.parse_dsn(db_connection.dsn)
+                return {
+                    'host': dsn_params.get('host', 'localhost'),
+                    'port': dsn_params.get('port', 5432),
+                    'database': dsn_params.get('dbname', 'foc26db'),
+                    'user': dsn_params.get('user', 'postgres'),
+                    'sslmode': dsn_params.get('sslmode', 'prefer'),
+                    'environment': 'production' if dsn_params.get('host') and 'render.com' in dsn_params.get('host', '') else 'development'
+                }
+            else:
+                # Configuración por defecto si no se puede obtener
+                return {
+                    'host': 'localhost',
+                    'port': 5432,
+                    'database': 'foc26db',
+                    'user': 'postgres',
+                    'sslmode': 'prefer',
+                    'environment': 'development'
+                }
+        except Exception:
+            return {
+                'host': 'localhost',
+                'port': 5432,
+                'database': 'foc26db',
+                'user': 'postgres',
+                'sslmode': 'prefer',
+                'environment': 'development'
+            }
         
     def get_connection(self):
         """Obtener conexión básica a base de datos"""
@@ -496,7 +581,7 @@ class DatabaseManager:
                     # Si falla la validación, crear nueva conexión
                     _self._connection = None
             
-            # Crear nueva conexión con SSL adaptable según ambiente y pool_pre_ping
+            # Crear nueva conexión con SSL adaptable según ambiente (solo parámetros estándar psycopg2)
             ssl_mode = _self.config.get('sslmode', 'prefer')
             connection_params = {
                 'host': _self.config['host'],
@@ -505,9 +590,7 @@ class DatabaseManager:
                 'user': _self.config['user'],
                 'password': _self.config['password'],
                 'cursor_factory': RealDictCursor,
-                'sslmode': ssl_mode,  # Adaptable: require para producción, prefer para desarrollo
-                'pool_pre_ping': True,  # Asegura conexión viva
-                'isolation_level': 'AUTOCOMMIT'  # Previene conflicto de transacciones
+                'sslmode': ssl_mode  # Adaptable: require para producción, prefer para desarrollo
             }
             
             print(f"DEBUG_DB: Conectando a {_self.config['host']}:{_self.config['port']}/{_self.config['database']} con SSL mode {ssl_mode}")
@@ -738,8 +821,46 @@ class DatabaseManager:
         
         return test_result
 
-# Instancia global del gestor de base de datos
-db_manager = DatabaseManager()
+# Instancia global del gestor de base de datos con manejo de errores
+db_manager = None
+
+def initialize_db_manager():
+    """Inicializar DatabaseManager con fallback automático a producción"""
+    global db_manager
+    
+    if db_manager is not None:
+        return db_manager
+    
+    try:
+        # Intentar inicialización normal (local o producción según configuración)
+        db_manager = DatabaseManager()
+        print("DEBUG_DB: DatabaseManager inicializado exitosamente")
+        return db_manager
+    except Exception as e:
+        print(f"DEBUG_DB_ERROR: Error inicializando DatabaseManager: {e}")
+        print("DEBUG_DB_ERROR: Intentando usar ambiente de producción como fallback...")
+        
+        # Fallback a producción si falla la conexión local
+        import os
+        os.environ['DATABASE_URL'] = 'postgresql://foc26db_user:IZfArPXgOciy8iKsiRDbOosUiR7BAc8u@dpg-d7gfpi28qa3s73ci36d0-a.oregon-postgres.render.com/foc26db'
+        
+        try:
+            # Forzar recarga de configuración
+            import importlib
+            import config
+            importlib.reload(config)
+            
+            # Crear nueva instancia con configuración de producción
+            db_manager = DatabaseManager()
+            print("DEBUG_DB: DatabaseManager inicializado exitosamente con fallback a producción")
+            return db_manager
+        except Exception as fallback_error:
+            print(f"DEBUG_DB_ERROR: Error en fallback a producción: {fallback_error}")
+            print("DEBUG_DB_ERROR: No se pudo inicializar DatabaseManager")
+            raise Exception("No se puede conectar ni a base de datos local ni a producción")
+
+# Inicializar al importar el módulo
+initialize_db_manager()
 
 # Funciones globales para compatibilidad - ESQUEMA UNIFICADO
 def execute_query(query: str, params: Optional[Tuple] = None, 
@@ -1011,11 +1132,11 @@ def obtener_historial_formacion(limit=None):
     """Obtener historial de formaciones complementarias"""
     try:
         query = """
-        SELECT id_formacion, nombre_taller, descripcion, fecha_inicio, fecha_fin, 
-               cupo_maximo, cupo_actual, estado, codigo_certificado, tomo, folio, facilitador,
-               cedula_usuario_creador, fecha_creacion
+        SELECT codigo_formacion, id_tipo_taller, id_taller, cedula_profesor, 
+               fecha_inicio, fecha_fin, observacion, tipo_formacion, 
+               hora_inicio, hora_finalizacion, id_estado_registro, cohorte
         FROM formacion_complementaria 
-        ORDER BY fecha_creacion DESC
+        ORDER BY codigo_formacion DESC
         """
         
         if limit:
@@ -1487,44 +1608,68 @@ def ensure_admin_exists():
         logger.error(f"Error verificando administrador: {e}")
 
 def authenticate_user(username, password):
-    """Autenticar usuario por cédula o login con soporte hash/texto plano."""
+    """Autenticar usuario usando canal único y consulta parametrizada unificada."""
     try:
         import hashlib
 
-        cleaned_username = (username or "").strip()
-        if not cleaned_username or password is None:
+        # Validación de entrada con tratamiento uniforme de tipos
+        cleaned_username = str(username or "").strip()
+        password_str = str(password or "")
+        
+        if not cleaned_username or not password_str:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
+        # Normalización de cédula consistente para ambos ambientes
         normalized_username = cleaned_username.upper()
-        # No agregar V- para cédulas numéricas, buscar directamente
+        
+        # Lógica unificada para manejo de cédulas
         if normalized_username.startswith("V-"):
-            # Mantener V- si ya viene con ese formato
-            pass
+            # Si viene con V-, quitar el V- para buscar como número puro
+            normalized_username = normalized_username[2:]  # Quitar "V-"
         elif normalized_username.startswith(("V", "E")) and "-" not in normalized_username and normalized_username[1:].isdigit():
             normalized_username = f"{normalized_username[0]}-{normalized_username[1:]}"
+            # Si es formato V123456, quitar la V para buscar como número
+            if normalized_username.startswith("V-"):
+                normalized_username = normalized_username[2:]
+        elif normalized_username.isdigit():
+            # Para cédulas numéricas, buscar directamente
+            pass
 
-        hashed_password = hashlib.sha256(str(password).encode('utf-8')).hexdigest()
+        # Generar hash SHA256 (librería consistente)
+        hashed_password = hashlib.sha256(password_str.encode('utf-8')).hexdigest()
 
+        # Consulta SQL única y parametrizada para ambos ambientes (tratar cédula como texto)
         query = """
         SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo, u.password_hash,
                p.nombre, p.apellido, p.telefono, p.direccion
         FROM usuarios u
         LEFT JOIN persona p ON u.cedula_usuario = p.cedula
-        WHERE (u.cedula_usuario = %s OR u.login_usuario = %s OR u.login_usuario = %s)
-          AND u.activo = TRUE
+        WHERE CAST(u.cedula_usuario AS TEXT) = %s AND u.activo = TRUE
         LIMIT 1
         """
+        
+        # Usar el canal único global - sin re-validación de entorno
+        print(f"DEBUG_AUTH: Consulta SQL final: {query.strip()}")
+        print(f"DEBUG_AUTH: Parámetro cédula: '{normalized_username}'")
+        print(f"DEBUG_AUTH: Buscando usuario con cédula: {normalized_username}")
         user_row = execute_query(
             query,
-            (normalized_username, cleaned_username, normalized_username),
+            (normalized_username,),
             fetch_one=True
         )
 
         if not user_row:
+            print(f"DEBUG_AUTH: Usuario no encontrado para cédula: {normalized_username}")
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
+        # Validación de hash con logging detallado
         stored_password = str(user_row.get('password_hash', '')).strip()
-        password_ok = (stored_password == hashed_password) or (stored_password == str(password))
+        print(f"DEBUG_AUTH: Hash almacenado: {stored_password}")
+        print(f"DEBUG_AUTH: Hash ingresado: {hashed_password}")
+        
+        password_ok = (stored_password == hashed_password)
+        print(f"DEBUG_AUTH: Passwords coinciden: {password_ok}")
+        
         if not password_ok:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 

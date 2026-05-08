@@ -60,33 +60,28 @@ class GestionEstudiantil:
             from database import execute_query
             import pandas as pd
             
-            # Consulta SQL optimizada para traer todos los datos necesarios
-            query = """
-            SELECT 
-                e.cedula_estudiante,
-                p.nombre,
-                p.apellido,
-                p.email_personal,
-                p.telefono,
-                p.fecha_nacimiento,
-                p.sexo,
-                p.direccion,
-                c.nombre_carrera as carrera,
-                e.semestre_actual,
-                e.estado_registro
-            FROM estudiante e
-            JOIN persona p ON e.cedula_estudiante = p.cedula
-            LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
-            ORDER BY p.apellido, p.nombre
-            """
-            
-            # Ejecutar consulta única
+            # Obtener lista de estudiantes (solo columnas existentes)
+            estudiantes = execute_query("""
+                SELECT e.cedula_estudiante,
+                       p.nombre,
+                       p.apellido,
+                       p.email,
+                       p.telefono,
+                       p.fecha_nacimiento,
+                       p.genero,
+                       e.id_carrera,
+                       c.nombre_carrera
+                FROM estudiante e
+                LEFT JOIN persona p ON e.id_persona = p.id
+                LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
+                ORDER BY p.apellido, p.nombre
+            """)
             print(f"DEBUG_ESTUDIANTIL_DB: Ejecutando consulta de estudiantes...")
-            result = execute_query(query, fetch_all=True)
-            print(f"DEBUG_ESTUDIANTIL_DB: Resultado: {len(result) if result else 0} estudiantes encontrados")
+            print(f"DEBUG_ESTUDIANTIL_DB: Resultado: {len(estudiantes) if estudiantes else 0} estudiantes encontrados")
             
-            if result and len(result) > 0:
+            if estudiantes and len(estudiantes) > 0:
                 # Convertir a DataFrame
+                df = pd.DataFrame(estudiantes)
                 df = pd.DataFrame(result)
                 
                 # Renombrar columnas para mejor visualización
@@ -151,16 +146,16 @@ class GestionEstudiantil:
                 e.cedula_estudiante,
                 p.nombre,
                 p.apellido,
-                p.email_personal,
+                p.email,
                 p.telefono,
                 p.fecha_nacimiento,
-                p.sexo,
+                p.genero,
                 p.direccion,
                 e.id_carrera,
-                e.semestre_actual,
-                e.estado_registro
+                e.id_semestre_formacion,
+                e.id_estado_registro
             FROM estudiante e
-            JOIN persona p ON e.cedula_estudiante = p.cedula
+            LEFT JOIN persona p ON e.id_persona = p.id
             WHERE e.cedula_estudiante = %s
             """
             
@@ -181,7 +176,7 @@ class GestionEstudiantil:
                 with col1:
                     nombre = st.text_input("Nombre*", value=resultado['nombre'], key="edit_nombre")
                     apellido = st.text_input("Apellido*", value=resultado['apellido'], key="edit_apellido")
-                    email = st.text_input("Email", value=resultado['email_personal'], key="edit_email")
+                    email = st.text_input("Email", value=resultado.get('email', ''), key="edit_email")
                     telefono = st.text_input("Teléfono", value=resultado['telefono'], key="edit_telefono")
                 
                 with col2:
@@ -245,10 +240,10 @@ class GestionEstudiantil:
                             update_queries = [
                                 (
                                     """UPDATE persona SET 
-                                        nombre = %s, apellido = %s, email_personal = %s, telefono = %s, 
-                                        fecha_nacimiento = %s, sexo = %s, direccion = %s 
+                                        nombre = %s, apellido = %s, email = %s, telefono = %s, 
+                                        fecha_nacimiento = %s, genero = %s, direccion = %s 
                                         WHERE cedula = %s""",
-                                    (nombre, apellido, email, telefono, fecha_nacimiento, sexo, direccion, cedula)
+                                    (nombre, apellido, email, telefono, fecha_nacimiento, genero, direccion, cedula)
                                 ),
                                 (
                                     """UPDATE estudiante SET 
@@ -339,10 +334,10 @@ class GestionEstudiantil:
                     # Insertar datos
                     insert_queries = [
                         (
-                            """INSERT INTO persona (cedula, nombre, apellido, email_personal, telefono, 
-                                fecha_nacimiento, sexo, direccion, fecha_creacion) 
+                            """INSERT INTO persona (cedula, nombre, apellido, email, telefono, 
+                                fecha_nacimiento, genero, direccion, creado_en) 
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                            (cedula, nombre, apellido, email, telefono, fecha_nacimiento, sexo, direccion)
+                            (cedula, nombre, apellido, email, telefono, fecha_nacimiento, genero, direccion)
                         ),
                         (
                             """INSERT INTO estudiante (cedula_estudiante, id_carrera, semestre_actual, 

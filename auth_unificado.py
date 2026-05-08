@@ -111,16 +111,12 @@ class AuthSystemUnificado:
             apellido = " ".join(nombre_partes[1:]) if len(nombre_partes) > 1 else "N/A"
 
             query_persona = """
-            INSERT INTO persona (
-                cedula,
-                nombre,
-                apellido,
-                email_personal
+            INSERT INTO persona (cedula, nombre, apellido, email)
             ) VALUES (%s, %s, %s, %s)
             ON CONFLICT (cedula) DO UPDATE
             SET nombre = EXCLUDED.nombre,
                 apellido = EXCLUDED.apellido,
-                email_personal = EXCLUDED.email_personal
+                email = EXCLUDED.email
             """
 
             params_persona = (
@@ -183,7 +179,12 @@ class AuthSystemUnificado:
                         st.error("❌ Por favor ingrese usuario y contraseña")
                     else:
                         with st.spinner("Autenticando..."):
-                            print(f"DEBUG_AUTH: Intentando autenticar usuario: {username}")
+                            print(f"DEBUG_AUTH: Datos capturados del formulario:")
+                            print(f"DEBUG_AUTH:   Username original: '{username}'")
+                            print(f"DEBUG_AUTH:   Password original: '{password}'")
+                            print(f"DEBUG_AUTH:   Username type: {type(username)}")
+                            print(f"DEBUG_AUTH:   Password type: {type(password)}")
+                            
                             result = authenticate_user(username, password)
                             print(f"DEBUG_AUTH: Resultado authenticate_user: {result}")
                         

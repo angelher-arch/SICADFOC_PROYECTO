@@ -52,7 +52,8 @@ class ConfigManager:
                 'port': int(os.getenv('DB_PORT', 5432)),
                 'database': os.getenv('DB_NAME', 'db_foc26'),
                 'user': os.getenv('DB_USER', 'postgres'),
-                'password': os.getenv('DB_PASSWORD', 'admin123'),
+                'password': os.getenv('DB_PASSWORD', '1234'),
+                'sslmode': 'prefer',  # Para desarrollo local
             },
             'pool': {
                 'min_connections': 2,
