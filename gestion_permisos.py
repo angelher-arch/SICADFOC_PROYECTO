@@ -148,10 +148,10 @@ class GestionPermisos:
         """Obtener la lista de roles del sistema"""
         try:
             query = """
-            SELECT DISTINCT nombre_rol as rol 
+            SELECT DISTINCT rol 
             FROM configuracion_permisos 
-            WHERE nombre_rol IS NOT NULL 
-            ORDER BY nombre_rol
+            WHERE rol IS NOT NULL 
+            ORDER BY rol
             """
             resultado = execute_query(query)
             
@@ -203,9 +203,9 @@ class GestionPermisos:
         """Obtener permisos actuales de un rol específico"""
         try:
             query = """
-            SELECT nombre_rol as rol, nombre_modulo as modulo, nombre_accion as accion, acceso_limitado_propio
+            SELECT rol, modulo, accion, acceso_limitado_propio
             FROM configuracion_permisos 
-            WHERE nombre_rol = %s
+            WHERE rol = %s
             """
             resultado = execute_query(query, (rol,))
             
@@ -226,7 +226,7 @@ class GestionPermisos:
             
             # Eliminar permisos existentes del rol
             queries.append((
-                "DELETE FROM configuracion_permisos WHERE nombre_rol = %s",
+                "DELETE FROM configuracion_permisos WHERE rol = %s",
                 (rol,)
             ))
             
@@ -235,7 +235,7 @@ class GestionPermisos:
                 queries.append((
                     """
                     INSERT INTO configuracion_permisos 
-                    (nombre_rol, nombre_modulo, nombre_accion, acceso_limitado_propio) 
+                    (rol, modulo, accion, acceso_limitado_propio) 
                     VALUES (%s, %s, %s, %s)
                     """,
                     (permiso['rol'], permiso['modulo'], permiso['accion'], permiso['acceso_limitado_propio'])
@@ -278,9 +278,9 @@ class GestionPermisos:
             
             # Obtener todos los permisos configurados
             query_permisos = """
-            SELECT nombre_rol as rol, nombre_modulo as modulo, nombre_accion as accion
+            SELECT rol, modulo, accion
             FROM configuracion_permisos 
-            ORDER BY nombre_rol, nombre_modulo, nombre_accion
+            ORDER BY rol, modulo, accion
             """
             permisos_config = execute_query(query_permisos)
             

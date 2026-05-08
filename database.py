@@ -559,99 +559,6 @@ class DatabaseManager:
                 conn.close()
                 print("DEBUG_DB: Conexión cerrada después de validación")
     
-    @st.cache_resource
-    def get_connection(_self):
-        """Obtener conexión directa a la base de datos con persistencia y validación"""
-        try:
-            # Si ya existe una conexión y está abierta, validar y retornarla
-            if _self._connection and not _self._connection.closed:
-                # Validar que la conexión aún funciona con SELECT 1
-                try:
-                    cursor = _self._connection.cursor()
-                    cursor.execute("SELECT 1")
-                    existing_conn_result = cursor.fetchone()
-                    cursor.close()
-                    # Si retorna tupla (conexión vieja sin RealDictCursor), recrear conexión
-                    if not isinstance(existing_conn_result, dict):
-                        _self._connection.close()
-                        _self._connection = None
-                    else:
-                        return _self._connection
-                except:
-                    # Si falla la validación, crear nueva conexión
-                    _self._connection = None
-            
-            # Crear nueva conexión con SSL adaptable según ambiente (solo parámetros estándar psycopg2)
-            ssl_mode = _self.config.get('sslmode', 'prefer')
-            connection_params = {
-                'host': _self.config['host'],
-                'port': _self.config['port'],
-                'database': _self.config['database'],
-                'user': _self.config['user'],
-                'password': _self.config['password'],
-                'cursor_factory': RealDictCursor,
-                'sslmode': ssl_mode  # Adaptable: require para producción, prefer para desarrollo
-            }
-            
-            print(f"DEBUG_DB: Conectando a {_self.config['host']}:{_self.config['port']}/{_self.config['database']} con SSL mode {ssl_mode}")
-            
-            try:
-                _self._connection = psycopg2.connect(**connection_params)
-                print(f"DEBUG_DB: Conexión establecida exitosamente con SSL {ssl_mode}")
-                
-                # Validar conexión inmediatamente
-                test_cursor = _self._connection.cursor()
-                test_cursor.execute("SELECT 1 as test_connection")
-                result = test_cursor.fetchone()
-                test_cursor.close()
-                print(f"DEBUG_DB: Conexión validada - Test query result: {result}")
-                
-            except OperationalError as e:
-                print(f"DEBUG_DB_ERROR: Error crítico en psycopg2.connect():")
-                print(f"  Código PostgreSQL (pgcode): {getattr(e, 'pgcode', 'N/A')}")
-                print(f"  Error PostgreSQL (pgerror): {getattr(e, 'pgerror', 'N/A')}")
-                print(f"  Error completo: {e}")
-                print(f"DEBUG_DB_ERROR: Parámetros usados:")
-                print(f"  Host: {_self.config['host']}")
-                print(f"  Port: {_self.config['port']}")
-                print(f"  Database: {_self.config['database']}")
-                print(f"  User: {_self.config['user']}")
-                print(f"  SSL Mode: {ssl_mode}")
-                print(f"  Parámetros de conexión:")
-                for key, value in connection_params.items():
-                    if key == 'password':
-                        print(f"    {key}: {'*' * len(str(value))}")
-                    else:
-                        print(f"    {key}: {value}")
-                raise
-            except Exception as e:
-                print(f"DEBUG_DB_ERROR: Error inesperado en psycopg2.connect(): {e}")
-                raise
-            
-            # VERIFICACIÓN DE ESQUEMA - Optimizada para producción
-            cursor = _self._connection.cursor()
-            
-            # Forzar esquema a public para consistencia
-            cursor.execute("SET search_path TO public;")
-            _self._connection.commit()
-            
-            # Solo log en producción, no en UI
-            if _self.config.get('environment') == 'production':
-                logger.info("Conexión establecida a producción")
-            
-            return _self._connection
-            
-        except OperationalError as e:
-            error_msg = f"Error de conexión a {_self.config['database']}@{_self.config['host']}:{_self.config['port']}: {e}"
-            print(f"ERROR: {error_msg}")
-            logger.error(error_msg)
-            raise ConnectionError(f"No se pudo conectar a PostgreSQL: {e}")
-        except Exception as e:
-            error_msg = f"Error inesperado obteniendo conexión: {e}"
-            print(f"ERROR: {error_msg}")
-            logger.error(error_msg)
-            raise
-    
     def close_connection(self):
         """Cerrar conexión actual"""
         try:
@@ -688,7 +595,7 @@ class DatabaseManager:
                 return [self._row_to_dict(row, cursor.description) for row in results]
             else:
                 # Persistir explícitamente operaciones de escritura (solo si no es AUTOCOMMIT)
-                if _self.config.get('environment') != 'production':
+                if self.config.get('environment') != 'production':
                     conn.commit()
                 return cursor.rowcount
                 
@@ -719,7 +626,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             
             # Iniciar transacción (manejo compatible con AUTOCOMMIT)
-            if _self.config.get('environment') == 'production':
+            if self.config.get('environment') == 'production':
                 # En producción con AUTOCOMMIT, usar BEGIN explícito
                 cursor.execute("BEGIN")
             
@@ -727,7 +634,7 @@ class DatabaseManager:
                 cursor.execute(query, params or ())
             
             # Commit (solo en desarrollo, en producción AUTOCOMMIT maneja)
-            if _self.config.get('environment') != 'production':
+            if self.config.get('environment') != 'production':
                 conn.commit()
             else:
                 cursor.execute("COMMIT")
@@ -1619,56 +1526,33 @@ def authenticate_user(username, password):
         if not cleaned_username or not password_str:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-        # Normalización de cédula consistente para ambos ambientes
-        normalized_username = cleaned_username.upper()
-        
-        # Lógica unificada para manejo de cédulas
-        if normalized_username.startswith("V-"):
-            # Si viene con V-, quitar el V- para buscar como número puro
-            normalized_username = normalized_username[2:]  # Quitar "V-"
-        elif normalized_username.startswith(("V", "E")) and "-" not in normalized_username and normalized_username[1:].isdigit():
-            normalized_username = f"{normalized_username[0]}-{normalized_username[1:]}"
-            # Si es formato V123456, quitar la V para buscar como número
-            if normalized_username.startswith("V-"):
-                normalized_username = normalized_username[2:]
-        elif normalized_username.isdigit():
-            # Para cédulas numéricas, buscar directamente
-            pass
-
         # Generar hash SHA256 (librería consistente)
         hashed_password = hashlib.sha256(password_str.encode('utf-8')).hexdigest()
 
-        # Consulta SQL única y parametrizada para ambos ambientes (tratar cédula como texto)
+        # Consulta SQL corregida - buscar por username o cedula_usuario
         query = """
         SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo, u.password_hash,
                p.nombre, p.apellido, p.telefono, p.direccion
         FROM usuarios u
         LEFT JOIN persona p ON u.cedula_usuario = p.cedula
-        WHERE CAST(u.cedula_usuario AS TEXT) = %s AND u.activo = TRUE
+        WHERE (u.username = %s OR CAST(u.cedula_usuario AS TEXT) = %s) AND u.activo = TRUE
         LIMIT 1
         """
         
-        # Usar el canal único global - sin re-validación de entorno
-        print(f"DEBUG_AUTH: Consulta SQL final: {query.strip()}")
-        print(f"DEBUG_AUTH: Parámetro cédula: '{normalized_username}'")
-        print(f"DEBUG_AUTH: Buscando usuario con cédula: {normalized_username}")
+        # Usar el canal único global - buscar por username y cédula
         user_row = execute_query(
             query,
-            (normalized_username,),
+            (cleaned_username, cleaned_username),
             fetch_one=True
         )
 
         if not user_row:
-            print(f"DEBUG_AUTH: Usuario no encontrado para cédula: {normalized_username}")
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-        # Validación de hash con logging detallado
+        # Validación de hash
         stored_password = str(user_row.get('password_hash', '')).strip()
-        print(f"DEBUG_AUTH: Hash almacenado: {stored_password}")
-        print(f"DEBUG_AUTH: Hash ingresado: {hashed_password}")
         
         password_ok = (stored_password == hashed_password)
-        print(f"DEBUG_AUTH: Passwords coinciden: {password_ok}")
         
         if not password_ok:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}

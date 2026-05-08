@@ -87,32 +87,14 @@ class AuthSystemUnificado:
     def registrar_usuario(self, datos_usuario):
         """Registrar nuevo usuario en la base de datos"""
         try:
-            # Insertar usuario y persona en una sola transacción.
-            query_usuarios = """
-            INSERT INTO usuarios (
-                cedula_usuario,
-                login_usuario,
-                contrasena,
-                rol,
-                activo
-            ) VALUES (%s, %s, %s, %s, %s)
-            """
-
-            params_usuarios = (
-                datos_usuario['cedula'],
-                datos_usuario['login'],
-                datos_usuario['password_hash'],
-                datos_usuario['rol'],
-                True
-            )
-
+            # Insertar persona primero para evitar conflictos de llaves foráneas
             nombre_partes = datos_usuario['nombre_completo'].split()
             nombre = nombre_partes[0] if nombre_partes else datos_usuario['nombre_completo']
             apellido = " ".join(nombre_partes[1:]) if len(nombre_partes) > 1 else "N/A"
 
             query_persona = """
             INSERT INTO persona (cedula, nombre, apellido, email)
-            ) VALUES (%s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (cedula) DO UPDATE
             SET nombre = EXCLUDED.nombre,
                 apellido = EXCLUDED.apellido,
@@ -126,16 +108,81 @@ class AuthSystemUnificado:
                 datos_usuario['email']
             )
 
-            result = execute_transaction([
-                (query_usuarios, params_usuarios),
-                (query_persona, params_persona)
-            ])
+            # Insertar usuario con cédula como username
+            query_usuarios = """
+            INSERT INTO usuarios (
+                username,
+                password_hash,
+                rol,
+                activo,
+                cedula_usuario,
+                login_usuario
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            
+            params_usuarios = (
+                datos_usuario['cedula'],  # Usar cédula como username
+                datos_usuario['password_hash'],
+                datos_usuario['rol'],
+                True,
+                datos_usuario['cedula'],
+                datos_usuario['login']
+            )
+
+            # Crear perfil específico según el rol - persona primero
+            queries = [
+                (query_persona, params_persona),
+                (query_usuarios, params_usuarios)
+            ]
+
+            # Si es estudiante, crear registro en tabla estudiante
+            if datos_usuario['rol'] == 'Estudiante':
+                query_estudiante = """
+                INSERT INTO estudiante (cedula_estudiante, nombres, apellidos)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (cedula_estudiante) DO UPDATE
+                SET nombres = EXCLUDED.nombres,
+                    apellidos = EXCLUDED.apellidos
+                """
+                params_estudiante = (
+                    datos_usuario['cedula'],
+                    nombre,  # Nombre del formulario
+                    apellido  # Apellido del formulario
+                )
+                queries.append((query_estudiante, params_estudiante))
+
+            # Si es profesor, crear registro en tabla profesor
+            elif datos_usuario['rol'] == 'Profesor':
+                query_profesor = """
+                INSERT INTO profesor (cedula_profesor, especialidad, estado)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (cedula_profesor) DO UPDATE
+                SET especialidad = EXCLUDED.especialidad,
+                    estado = EXCLUDED.estado
+                """
+                params_profesor = (
+                    datos_usuario['cedula'],
+                    'Por asignar',  # Especialidad por defecto
+                    'Activo'  # Estado por defecto
+                )
+                queries.append((query_profesor, params_profesor))
+
+            result = execute_transaction(queries)
+            
             if not result.get('success', False):
-                return False, result.get('message', 'Error al crear usuario')
+                error_msg = result.get('message', 'Error al crear usuario')
+                return False, f"Error en transacción: {error_msg}"
 
             return True, "Usuario registrado exitosamente"
+            
         except Exception as e:
-            return False, f"Error registrando usuario: {str(e)}"
+            error_detalle = str(e)
+            if "column" in error_detalle.lower() and "does not exist" in error_detalle.lower():
+                return False, f"Error de columna: {error_detalle}"
+            elif "null" in error_detalle.lower() and "violates" in error_detalle.lower():
+                return False, f"Error de valor nulo: {error_detalle}"
+            else:
+                return False, f"Error en el registro: {error_detalle}"
     
     def mostrar_formulario_login(self):
         """Mostrar formulario de login"""
@@ -214,12 +261,33 @@ class AuthSystemUnificado:
         
         # Botón de navegación fuera del formulario (solo si el login fue exitoso)
         if login_exitoso and user_info:
+            # Guardar información de sesión y rol
+            st.session_state.login_exitoso = True
+            st.session_state.user_info = user_info
+            st.session_state.usuario_rol = user_info.get('rol', 'N/A')
+            st.session_state.usuario_cedula = user_info.get('cedula_usuario', 'N/A')
+            st.session_state.usuario_nombre = user_info.get('nombre_completo', 'N/A')
+            
+            # Obtener permisos del usuario
+            from database import execute_query
+            try:
+                query_permisos = """
+                SELECT modulo, accion 
+                FROM configuracion_permisos 
+                WHERE rol = %s
+                """
+                permisos = execute_query(query_permisos, (st.session_state.usuario_rol,))
+                st.session_state.usuario_permisos = permisos if permisos else []
+            except Exception as e:
+                st.session_state.usuario_permisos = []
+            
             st.markdown("---")
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 if st.button("📋 Ir al Sistema Principal", use_container_width=True, type="secondary"):
                     st.success("🎉 Redirigiendo al sistema principal...")
-                    # Aquí iría la redirección al sistema principal
+                    # Redirigir al dashboard según rol
+                    st.session_state.pagina_actual = 'dashboard'
                     st.rerun()
         
         # Usuarios de prueba (siempre fuera del formulario)
@@ -277,23 +345,26 @@ class AuthSystemUnificado:
                 st.markdown("#### 🔐 Información de Acceso")
                 
                 password = st.text_input(
-                    "� Contraseña*",
+                    "🔒 Contraseña*",
                     type="password",
                     placeholder="Mínimo 6 caracteres, 1 letra, 1 número",
                     help="Use una contraseña segura"
                 )
                 
                 confirm_password = st.text_input(
-                    "� Confirmar Contraseña*",
+                    "🔒 Confirmar Contraseña*",
                     type="password",
                     placeholder="Repita su contraseña"
                 )
-                
-                rol = st.selectbox(
-                    "🏷️ Rol/Permisos*",
-                    options=self.roles_disponibles,
-                    help="Seleccione el rol que tendrá el usuario"
-                )
+            
+            # Selección de rol usando radio buttons como alternativa
+            st.markdown("#### 🏷️ Selección de Rol")
+            rol = st.radio(
+                "Rol/Permisos*",
+                options=['Profesor', 'Estudiante'],
+                index=0,
+                help="Seleccione el rol que tendrá el usuario"
+            )
             
             # CAPTCHA
             st.markdown("#### 🔒 Verificación de Seguridad")
@@ -321,6 +392,12 @@ class AuthSystemUnificado:
             # Procesar formulario
             if submit_button:
                 errores = []
+                
+                # Validación del rol primero
+                if not rol:
+                    errores.append("El rol es requerido")
+                elif rol not in ['Profesor', 'Estudiante']:
+                    errores.append("Rol no válido. Seleccione Profesor o Estudiante")
                 
                 # Validaciones básicas
                 if not nombre_completo.strip():
@@ -377,31 +454,38 @@ class AuthSystemUnificado:
                     
                     # Registrar usuario
                     with st.spinner("Registrando usuario..."):
-                        success, message = self.registrar_usuario(datos_usuario)
-                    
-                    if success:
-                        st.success("✅ Usuario registrado exitosamente")
-                        st.info(f"""
-                        **📋 Detalles del registro:**
-                        • **🆔 Cédula:** {datos_usuario['cedula']}
-                        • **👤 Usuario:** {datos_usuario['cedula']} (su cédula es su usuario)
-                        • **🏷️ Rol:** {datos_usuario['rol']}
-                        • **📧 Email:** {datos_usuario['email']}
-                        
-                        **🔑 Nota:** Use su número de cédula para iniciar sesión.
-                        """)
-                        
-                        # Marcar que el registro fue exitoso para mostrar el botón después
-                        st.session_state.registro_exitoso = True
-                        st.session_state.test_username = datos_usuario['cedula']
-                        st.session_state.test_password = password
-                        
-                        # Limpiar CAPTCHA
-                        st.session_state.captcha_correcto = random.randint(1000, 9999)
-                    else:
-                        st.error(f"❌ {message}")
-                        # Generar nuevo CAPTCHA si hay error
-                        st.session_state.captcha_correcto = random.randint(1000, 9999)
+                        try:
+                            success, message = self.registrar_usuario(datos_usuario)
+                            
+                            if success:
+                                st.success("✅ Usuario registrado exitosamente")
+                                st.info(f"""
+                                **📋 Detalles del registro:**
+                                • **🆔 Cédula:** {datos_usuario['cedula']}
+                                • **👤 Usuario:** {datos_usuario['cedula']} (su cédula es su usuario)
+                                • **🏷️ Rol:** {datos_usuario['rol']}
+                                • **📧 Email:** {datos_usuario['email']}
+                                
+                                **🔑 Nota:** Use su número de cédula para iniciar sesión.
+                                """)
+                                
+                                # Marcar que el registro fue exitoso para mostrar el botón después
+                                st.session_state.registro_exitoso = True
+                                st.session_state.test_username = datos_usuario['cedula']
+                                st.session_state.test_password = password
+                                
+                                # Limpiar CAPTCHA
+                                st.session_state.captcha_correcto = random.randint(1000, 9999)
+                            else:
+                                st.error(f"❌ Error en el registro: {message}")
+                                # Generar nuevo CAPTCHA si hay error
+                                st.session_state.captcha_correcto = random.randint(1000, 9999)
+                                
+                        except Exception as e:
+                            st.error(f"❌ Error crítico en el registro: {str(e)}")
+                            st.error("Por favor, contacte al administrador del sistema.")
+                            # Generar nuevo CAPTCHA si hay error
+                            st.session_state.captcha_correcto = random.randint(1000, 9999)
         
         # Opción de probar login (fuera del formulario)
         if 'registro_exitoso' in st.session_state and st.session_state.registro_exitoso:
@@ -425,50 +509,103 @@ class AuthSystemUnificado:
             - **Usuario:** Único en el sistema
             - **Contraseña:** Mínimo 6 caracteres, 1 letra, 1 número
             
-            **🏆 Roles Disponibles:**
-            - **Administrador:** Acceso completo
-            - **Gestor:** Gestión de usuarios y contenido
-            - **Auditor:** Solo lectura y reportes
+            **🏆 Roles Disponibles para Auto-registro:**
+            - **Profesor:** Acceso a gestión de talleres y estudiantes
+            - **Estudiante:** Acceso a inscripción y consulta de talleres
             """)
     
     def mostrar_sistema_principal(self):
-        """Mostrar sistema principal después del login con sidebar transaccional"""
-        # Obtener información del usuario y permisos
-        user_info = st.session_state.get('user', {})
-        user_role = user_info.get('rol', 'N/A')
+        """Mostrar sistema principal después del login con RBAC"""
+        # Obtener información del usuario y permisos desde session_state
+        user_role = st.session_state.get('usuario_rol', 'N/A')
+        user_permisos = st.session_state.get('usuario_permisos', [])
         
-        # Sidebar para navegación transaccional
+        # Función para verificar permisos
+        def tiene_permiso(modulo, accion='read'):
+            for permiso in user_permisos:
+                if (permiso.get('modulo') == modulo or permiso.get('modulo') == 'ALL') and \
+                   (permiso.get('accion') == accion or permiso.get('accion') == 'ALL'):
+                    return True
+            return False
+        
+        # Sidebar para navegación con RBAC
         with st.sidebar:
             st.markdown("## 🔐 SICADFOC 2026")
-            st.markdown("### 🏠 Panel Principal")
-            
-            # Dashboard Principal (siempre visible)
-            dashboard_selected = st.button("� Dashboard General", use_container_width=True)
+            st.markdown(f"### 👤 {st.session_state.get('usuario_nombre', 'Usuario')}")
+            st.markdown(f"**�️ Rol:** {user_role}")
             
             st.markdown("---")
-            st.markdown("### 🔄 Módulos Operativos")
+            st.markdown("### � Panel Principal")
             
-            # Módulos Transaccionales con control de acceso
-            gestion_estudiantil_enabled = self._verificar_acceso_modulo('Gestión Estudiantil', user_role)
-            gestion_profesores_enabled = self._verificar_acceso_modulo('Gestión Profesores', user_role)
-            formacion_enabled = self._verificar_acceso_modulo('Formación Complementaria', user_role)
+            # Dashboard Principal (siempre visible)
+            if st.button("📊 Dashboard General", use_container_width=True):
+                st.session_state.pagina_actual = 'dashboard'
+                st.rerun()
             
-            # Botones de módulos operativos
-            col1, col2 = st.columns(2)
-            with col1:
-                estudiantil_btn = st.button(
-                    "📚 Gestión\nEstudiantil", 
-                    use_container_width=True,
-                    disabled=not gestion_estudiantil_enabled,
-                    help="Registro, Inscripción, Carga de Notas" if gestion_estudiantil_enabled else "Sin permisos"
-                )
-                profesores_btn = st.button(
-                    "�‍🏫 Gestión\nProfesores", 
-                    use_container_width=True,
-                    disabled=not gestion_profesores_enabled,
-                    help="Asignación, Carga académica" if gestion_profesores_enabled else "Sin permisos"
-                )
+            st.markdown("---")
+            st.markdown("### 🔄 Módulos Disponibles")
             
+            # Módulos según rol y permisos
+            if user_role == 'Estudiante':
+                # Estudiante solo ve sus módulos específicos
+                if tiene_permiso('estudiantes', 'read'):
+                    if st.button("📚 Mis Notas", use_container_width=True):
+                        st.session_state.pagina_actual = 'mis_notas'
+                        st.rerun()
+                
+                if tiene_permiso('inscripciones', 'read'):
+                    if st.button("📝 Mis Inscripciones", use_container_width=True):
+                        st.session_state.pagina_actual = 'mis_inscripciones'
+                        st.rerun()
+                
+                if tiene_permiso('certificados', 'read'):
+                    if st.button("🎓 Mis Certificados", use_container_width=True):
+                        st.session_state.pagina_actual = 'mis_certificados'
+                        st.rerun()
+            
+            elif user_role == 'Profesor':
+                # Profesor ve sus módulos específicos
+                if tiene_permiso('secciones', 'read'):
+                    if st.button("👥 Mis Secciones", use_container_width=True):
+                        st.session_state.pagina_actual = 'mis_secciones'
+                        st.rerun()
+                
+                if tiene_permiso('notas', 'write'):
+                    if st.button("📊 Cargar Notas", use_container_width=True):
+                        st.session_state.pagina_actual = 'cargar_notas'
+                        st.rerun()
+                
+                if tiene_permiso('asistencia', 'write'):
+                    if st.button("✅ Asistencia", use_container_width=True):
+                        st.session_state.pagina_actual = 'asistencia'
+                        st.rerun()
+            
+            elif user_role == 'Administrador':
+                # Administrador ve todos los módulos
+                if tiene_permiso('estudiantes', 'read'):
+                    if st.button("📚 Gestión Estudiantil", use_container_width=True):
+                        st.session_state.pagina_actual = 'gestion_estudiantil'
+                        st.rerun()
+                
+                if tiene_permiso('profesores', 'read'):
+                    if st.button("👨‍🏫 Gestión Profesores", use_container_width=True):
+                        st.session_state.pagina_actual = 'gestion_profesores'
+                        st.rerun()
+                
+                if tiene_permiso('formacion', 'read'):
+                    if st.button("🎓 Formación Complementaria", use_container_width=True):
+                        st.session_state.pagina_actual = 'formacion'
+                        st.rerun()
+                
+                if tiene_permiso('reportes', 'read'):
+                    if st.button("📈 Reportes", use_container_width=True):
+                        st.session_state.pagina_actual = 'reportes'
+                        st.rerun()
+                
+                if tiene_permiso('configuracion', 'write'):
+                    if st.button("⚙️ Configuración", use_container_width=True):
+                        st.session_state.pagina_actual = 'configuracion'
+                        st.rerun()
             with col2:
                 formacion_btn = st.button(
                     "🎓 Formación\nComplementaria", 
@@ -821,8 +958,8 @@ def main():
     # Inicializar sistema de autenticación
     auth_system = AuthSystemUnificado()
     
-    # Verificar si el usuario está logueado
-    if st.session_state.get('logged_in', False):
+    # Verificar si el usuario está logueado (usando nuevas variables de sesión)
+    if st.session_state.get('login_exitoso', False):
         auth_system.mostrar_sistema_principal()
     else:
         # Verificar si debemos cambiar a login (después del registro)
