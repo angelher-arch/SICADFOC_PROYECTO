@@ -250,6 +250,28 @@ class EditorCertificados:
     def obtener_configuracion_certificados(self):
         """Obtiene la configuración actual de certificados"""
         try:
+            # Verificar si la tabla existe primero
+            query_check = '''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'configuracion_certificados'
+            ) as table_exists
+            '''
+            table_check = execute_query(query_check, fetch_one=True)
+            
+            if not table_check or not table_check.get('table_exists', False):
+                # Si la tabla no existe, devolver valores por defecto
+                return {
+                    'nombre_x': 100, 'nombre_y': 200, 'nombre_tamano': 24,
+                    'horas_x': 100, 'horas_y': 250, 'horas_tamano': 18,
+                    'tutor_x': 100, 'tutor_y': 300, 'tutor_tamano': 18,
+                    'codigo_x': 100, 'codigo_y': 150, 'codigo_tamano': 16,
+                    'contenido_x': 100, 'contenido_y': 200, 'contenido_tamano': 14,
+                    'contenido_ancho': 600
+                }
+            
+            # Si la tabla existe, intentar obtener la configuración
             query = "SELECT * FROM configuracion_certificados ORDER BY fecha_creacion DESC LIMIT 1"
             resultado = execute_query(query, fetch_one=True)
             
@@ -289,6 +311,21 @@ class EditorCertificados:
     def guardar_configuracion_certificados(self, config):
         """Guarda la configuración de certificados"""
         try:
+            # Verificar si la tabla existe primero
+            query_check = '''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'configuracion_certificados'
+            ) as table_exists
+            '''
+            table_check = execute_query(query_check, fetch_one=True)
+            
+            if not table_check or not table_check.get('table_exists', False):
+                # Si la tabla no existe, mostrar mensaje amigable
+                st.info("La tabla de configuración de certificados no está disponible. Usando configuración por defecto.")
+                return
+            
             # Verificar si existe configuración
             query_check = "SELECT COUNT(*) as count FROM configuracion_certificados"
             resultado = execute_query(query_check, fetch_one=True)

@@ -241,11 +241,13 @@ class AuthSystemUnificado:
         
         # Generar CAPTCHA simple
         import random
-        captcha_num = random.randint(1000, 9999)
         
-        # Guardar CAPTCHA en session state
+        # Usar CAPTCHA existente o generar uno nuevo
         if 'captcha_correcto' not in st.session_state:
+            captcha_num = random.randint(1000, 9999)
             st.session_state.captcha_correcto = captcha_num
+        else:
+            captcha_num = st.session_state.captcha_correcto
         
         with st.form("registro_form"):
             col1, col2 = st.columns(2)
@@ -350,7 +352,7 @@ class AuthSystemUnificado:
                 # Validación CAPTCHA
                 if not captcha_input.strip():
                     errores.append("El código de verificación es requerido")
-                elif captcha_input.strip() != str(captcha_num):
+                elif captcha_input.strip() != str(st.session_state.captcha_correcto):
                     errores.append("El código de verificación es incorrecto")
                 
                 # Mostrar errores o procesar registro
@@ -359,6 +361,10 @@ class AuthSystemUnificado:
                     for error in errores:
                         st.write(f"• {error}")
                 else:
+                    # Limpiar CAPTCHA después de uso exitoso
+                    if 'captcha_correcto' in st.session_state:
+                        del st.session_state.captcha_correcto
+                    
                     # Preparar datos (usando cédula como login)
                     datos_usuario = {
                         'nombre_completo': nombre_completo.strip(),
