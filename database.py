@@ -1004,15 +1004,25 @@ def guardar_nueva_formacion(nombre_taller, descripcion, fecha_inicio, fecha_fin,
     try:
         query_insert = """
         INSERT INTO formacion_complementaria 
-        (nombre_taller, descripcion, fecha_inicio, fecha_fin, cupo_maximo, estado, 
-         cedula_usuario_creador, codigo_certificado, tomo, folio, facilitador, cupo_actual)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
-        RETURNING id_formacion
+        (codigo_formacion, id_tipo_taller, id_taller, cedula_profesor, fecha_inicio, fecha_fin, 
+         observacion, tipo_formacion, hora_inicio, hora_finalizacion, id_estado_registro, cohorte)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING codigo_formacion
         """
         
         transaction_queries = [(query_insert, (
-            nombre_taller, descripcion, fecha_inicio, fecha_fin, cupo_maximo, estado, 
-            cedula_usuario_creador, codigo_certificado, tomo, folio, facilitador
+            nombre_taller,  # codigo_formacion
+            None,           # id_tipo_taller
+            None,           # id_taller
+            cedula_usuario_creador,  # cedula_profesor
+            fecha_inicio,
+            fecha_fin,
+            descripcion,    # observacion
+            'TALLER',      # tipo_formacion
+            None,           # hora_inicio
+            None,           # hora_finalizacion
+            1,              # id_estado_registro
+            2026            # cohorte
         ))]
         
         result = execute_transaction(transaction_queries)
@@ -1021,7 +1031,7 @@ def guardar_nueva_formacion(nombre_taller, descripcion, fecha_inicio, fecha_fin,
             return {
                 'success': True,
                 'message': 'Formación complementaria creada exitosamente',
-                'id_formacion': result.get('id_formacion')
+                'id_formacion': result.get('codigo_formacion')
             }
         else:
             return {
