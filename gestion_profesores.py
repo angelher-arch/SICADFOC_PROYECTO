@@ -82,9 +82,9 @@ class GestionProfesores:
                 # Convertir a DataFrame
                 df = pd.DataFrame(result)
                 
-                # Renombrar columnas para mejor visualización
+                # Renombrar columnas para mejor visualización (solo 7 columnas reales)
                 df.columns = ['Cédula', 'Nombre', 'Apellido', 'Email', 'Teléfono', 
-                             'Especialidad', 'Fecha Contratación', 'Activo', 'Usuario']
+                             'Especialidad', 'Estado']
                 
                 # Mostrar estadísticas
                 st.info(f"Total de profesores registrados: {len(df)}")
@@ -92,7 +92,7 @@ class GestionProfesores:
                 # Mostrar DataFrame con opciones de filtrado
                 st.dataframe(df, width='stretch', hide_index=True)
                 
-                # Opciones de exportación
+                # Opciones de exportación con control RBAC
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Exportar a CSV", key="export_profesores"):
@@ -105,12 +105,16 @@ class GestionProfesores:
                         )
                 
                 with col2:
-                    if st.button("Actualizar Lista", key="refresh_profesores"):
+                    # Solo administradores pueden actualizar
+                    is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+                    if st.button("Actualizar Lista", key="refresh_profesores", disabled=not is_admin):
                         st.rerun()
                         
             else:
                 st.warning("No se encontraron profesores registrados.")
-                st.info("Use la pestaña 'Registrar Nuevo Profesor' para agregar nuevos registros.")
+                is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+                if is_admin:
+                    st.info("Use la pestaña 'Registrar Nuevo Profesor' para agregar nuevos registros.")
                 
         except Exception as e:
             st.error(f"Error al cargar el listado de profesores: {e}")
@@ -119,19 +123,26 @@ class GestionProfesores:
     def consultar_editar_profesor(self):
         """Función para consultar y editar profesor por cédula"""
         try:
+            # Control de acceso - Solo administradores pueden editar
+            is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+            
             # Formulario de búsqueda por cédula
             cedula_busqueda = st.text_input("Ingrese Cédula del Profesor:", key="cedula_busqueda_profesor")
             
-            if st.button("Buscar Profesor", type="primary", key="btn_buscar_profesor"):
+            # Botón de búsqueda con control RBAC
+            button_label = "Buscar Profesor" if is_admin else "Ver Profesor (Solo Lectura)"
+            button_type = "primary" if is_admin else "secondary"
+            
+            if st.button(button_label, type=button_type, key="btn_buscar_profesor"):
                 if cedula_busqueda:
-                    self.mostrar_formulario_edicion_profesor(cedula_busqueda)
+                    self.mostrar_formulario_edicion_profesor(cedula_busqueda, allow_edit=is_admin)
                 else:
                     st.warning("Por favor, ingrese una cédula para buscar.")
                     
         except Exception as e:
             st.error(f"Error en sección de consulta/edición: {e}")
     
-    def mostrar_formulario_edicion_profesor(self, cedula):
+    def mostrar_formulario_edicion_profesor(self, cedula, allow_edit=True):
         """Mostrar formulario para editar profesor existente"""
         try:
             from database import execute_query

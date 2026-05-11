@@ -159,49 +159,54 @@ class SeguridadFOC26:
     def get_user_role() -> str:
         """Obtener rol del usuario actual con normalización"""
         try:
-            if 'user' not in st.session_state:
-                return None
-            user_data = st.session_state['user']
-            if user_data is None:
-                return None
-            if not isinstance(user_data, dict):
-                return None
-            rol = user_data.get('rol', None)
-            if rol:
-                # NORMALIZACIÓN: strip().capitalize() para evitar errores de espacios/mayúsculas
-                return rol.strip().capitalize()
+            user_data = st.session_state.get('user')
+            if isinstance(user_data, dict):
+                rol = user_data.get('rol')
+                if rol:
+                    return str(rol).strip().capitalize()
+
+            # Fallbacks para distintos flujos de sesión
+            rol_fallback = st.session_state.get('user_role') or st.session_state.get('role')
+            if rol_fallback:
+                return str(rol_fallback).strip().capitalize()
+
             return None
-        except Exception as e:
+        except Exception:
             return None
     
     @staticmethod
     def get_user_cedula() -> str:
         """Obtener la cédula del usuario logueado"""
         try:
-            if 'user' not in st.session_state:
-                return None
-            user_data = st.session_state['user']
-            if user_data is None:
-                return None
-            if not isinstance(user_data, dict):
-                return None
-            return user_data.get('cedula_usuario', None)
-        except Exception as e:
+            user_data = st.session_state.get('user')
+            if isinstance(user_data, dict):
+                cedula = user_data.get('cedula_usuario')
+                if cedula:
+                    return str(cedula).strip()
+
+            # Fallbacks para distintos flujos de sesión
+            cedula_fallback = st.session_state.get('user_cedula') or st.session_state.get('cedula') or st.session_state.get('usuario_cedula')
+            if cedula_fallback:
+                return str(cedula_fallback).strip()
+
+            return None
+        except Exception:
             return None
     
     @staticmethod
     def is_admin() -> bool:
         """UNIFICACIÓN DE ROLES: Comparación robusta ADMIN/ADMINISTRADOR"""
         try:
-            # BYPASS ESPECIAL: Angel Hernandez (14300385) siempre es admin
             user_cedula = SeguridadFOC26.get_user_cedula()
             if user_cedula and user_cedula.strip() in ['14300385', 'V-14300385']:
                 return True
-            
-            # SIMPLIFICACIÓN: Si es Admin acceso total
-            user_rol = str(st.session_state.get('user_role', '')).strip().upper()
-            return user_rol in ['ADMIN', 'ADMINISTRADOR']
-        except Exception as e:
+
+            user_rol = SeguridadFOC26.get_user_role()
+            if user_rol:
+                return user_rol.strip().capitalize() in ['Admin', 'Administrador']
+
+            return False
+        except Exception:
             return False
     
     @staticmethod

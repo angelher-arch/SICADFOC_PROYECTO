@@ -522,17 +522,18 @@ def conectar_foc26db():
         return False
 
 def verificar_usuario(usuario_input, clave_input):
-    """Autenticación segura usando database.py con 4 capas de seguridad"""
+    """Autenticación segura usando database.py con 4 capas de seguridad y homologación de cédulas"""
     try:
-        # Importar el nuevo database
+        # Importar el nuevo database y utilidades de homologación
         from database import authenticate_user
+        from utils_homologacion import homologar_cedula
         
-        # Capturar cédula del formulario
+        # Capturar y homologar cédula del formulario
         cedula_limpia = usuario_input.strip().upper()
+        cedula_homologada = homologar_cedula(cedula_limpia)
         
-                
-        # Usar autenticación segura con database.py
-        resultado_auth = authenticate_user(cedula_limpia, clave_input)
+        # Usar autenticación segura con database.py (ya incluye homologación interna)
+        resultado_auth = authenticate_user(cedula_homologada, clave_input)
 
         if resultado_auth and resultado_auth.get('success', False):
             # Construir resultado compatible con formato esperado
@@ -625,6 +626,7 @@ def main():
         st.session_state.logged_in = False
         st.session_state.user_role = None
         st.session_state.user_cedula = None
+        st.session_state.cedula = None
     
     # Login o contenido principal
     if not st.session_state.logged_in:
@@ -660,6 +662,7 @@ def main():
                                         st.session_state.logged_in = True
                                         st.session_state.user_role = resultado['rol']
                                         st.session_state.user_cedula = resultado['cedula']
+                                        st.session_state.cedula = resultado['cedula']
                                         st.session_state.es_superusuario = resultado.get('es_superusuario', False)
                                         # Agregar información completa de usuario para configuracion
                                         st.session_state.user = {
@@ -741,6 +744,7 @@ def main():
                     st.session_state.logged_in = False
                     st.session_state.user_role = None
                     st.session_state.user_cedula = None
+                    st.session_state.cedula = None
                     st.session_state.es_superusuario = False
                     st.session_state.user = None
                     st.rerun()
@@ -790,6 +794,7 @@ def main():
                 limpiar_sesion_db()
                 st.session_state.modulo_actual = "Formación Complementaria"
                 st.rerun()
+            
             
             if st.button("Inscripciones", key="btn_inscripciones", use_container_width=True):
                 limpiar_estado_modulo_anterior()
@@ -1072,12 +1077,12 @@ def mostrar_menu_principal():
         
         # Botón de logout
         st.markdown("---")
-        if st.button("Cerrar Sesión", type="secondary"):
-            # Limpiar sesión
+        if st.button("Cerrar Sesión", type="secondary", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.user = {}
             st.session_state.user_role = None
             st.session_state.user_cedula = None
+            st.session_state.cedula = None
             st.session_state.user_nombre = None
             st.session_state.modulo_actual = None
             st.rerun()

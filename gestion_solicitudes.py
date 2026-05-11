@@ -56,16 +56,22 @@ class GestionSolicitudes:
         try:
             # Obtener talleres con información de cupos
             query = """
-            SELECT fc.*, 
+            SELECT fc.id_formacion,
+                   fc.nombre,
+                   fc.codigo_referencia,
+                   fc.codigo_certificado,
+                   fc.fecha_inicio,
+                   fc.fecha_fin,
+                   fc.cupo_maximo,
                    COUNT(i.id_inscripcion) as inscritos,
-                   p.nombre as facilitador_nombre, 
+                   p.nombre as facilitador_nombre,
                    p.apellido as facilitador_apellido
             FROM formacion_complementaria fc
             LEFT JOIN inscripcion i ON fc.id_formacion = i.id_formacion AND i.estado = 'Activa'
             LEFT JOIN profesor pr ON fc.id_usuario = pr.cedula_profesor
             LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
             WHERE fc.fecha_inicio >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY fc.id_formacion, p.nombre, p.apellido
+            GROUP BY fc.id_formacion, fc.nombre, fc.codigo_referencia, fc.codigo_certificado, fc.fecha_inicio, fc.fecha_fin, fc.cupo_maximo, p.nombre, p.apellido
             ORDER BY fc.fecha_inicio DESC
             """
             
@@ -82,13 +88,14 @@ class GestionSolicitudes:
                 cupo_maximo = taller.get('cupo_maximo', 30)
                 cupos_disponibles = cupo_maximo - inscritos
                 estado_cupo = "Disponible" if cupos_disponibles > 0 else "Completo"
+                codigo_taller = taller.get('codigo_referencia') or taller.get('codigo_certificado') or 'N/A'
                 
                 datos_talleres.append({
-                    'Nombre Taller': taller['nombre_taller'],
-                    'Código': taller['codigo_certificado'],
+                    'Nombre Taller': taller.get('nombre') or 'N/A',
+                    'Código': codigo_taller,
                     'Facilitador': f"{taller.get('facilitador_nombre', 'N/A')} {taller.get('facilitador_apellido', '')}",
-                    'Fecha Inicio': taller['fecha_inicio'].strftime('%d/%m/%Y'),
-                    'Fecha Fin': taller['fecha_fin'].strftime('%d/%m/%Y'),
+                    'Fecha Inicio': taller['fecha_inicio'].strftime('%d/%m/%Y') if taller.get('fecha_inicio') else 'N/A',
+                    'Fecha Fin': taller['fecha_fin'].strftime('%d/%m/%Y') if taller.get('fecha_fin') else 'N/A',
                     'Inscritos': inscritos,
                     'Cupo Máximo': cupo_maximo,
                     'Disponibles': cupos_disponibles,
@@ -121,7 +128,7 @@ class GestionSolicitudes:
                 st.warning(f"⚠️ {len(talleres_completos)} taller(es) han alcanzado su cupo máximo")
                 
         except Exception as e:
-            st.error("Error al cargar la disponibilidad de talleres")
+            st.error(f"Error al cargar la disponibilidad de talleres: {str(e)}")
             st.info("Por favor, intente nuevamente más tarde")
     
     def mostrar_validacion_solicitudes(self):
@@ -135,7 +142,8 @@ class GestionSolicitudes:
             SELECT sf.*, 
                    p.nombre as estudiante_nombre, 
                    p.apellido as estudiante_apellido,
-                   fc.nombre_taller,
+                   fc.nombre as nombre_taller,
+                   fc.codigo_referencia,
                    fc.codigo_certificado
             FROM solicitudes_formacion sf
             INNER JOIN estudiante e ON sf.cedula_estudiante = e.cedula_estudiante
@@ -163,28 +171,29 @@ class GestionSolicitudes:
                         st.write(f"**Código:** {solicitud['codigo_certificado']}")
                     
                     with col2:
-                        st.write(f"**Fecha Solicitud:** {solicitud['fecha_solicitud'].strftime('%d/%m/%Y %H:%M')}")
+                        st.write(f"**Fecha Solicitud:** {solicitud['fecha_solicitud'].strftime('%d/%m/%Y %H:%M') if solicitud.get('fecha_solicitud') else 'N/A'}")
                         st.write(f"**Estado Actual:** {solicitud['estado']}")
+                        st.write(f"**Código Taller:** {solicitud.get('codigo_referencia') or solicitud.get('codigo_certificado') or 'N/A'}")
                     
-                    # Botones de acción
-                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+                    decision = st.radio(
+                        "Decisión",
+                        ["Pendiente", "Aprobada", "Rechazada"],
+                        index=0,
+                        key=f"decision_{solicitud['id_solicitud']}"
+                    )
                     
-                    with col_btn1:
-                        if st.button("✅ Aprobar", key=f"aprobar_{solicitud['id_solicitud']}", type="primary"):
+                    if st.button("Guardar decisión", key=f"guardar_decision_{solicitud['id_solicitud']}"):
+                        if decision == 'Aprobada':
                             self.aprobar_solicitud(solicitud['id_solicitud'])
-                    
-                    with col_btn2:
-                        if st.button("❌ Rechazar", key=f"rechazar_{solicitud['id_solicitud']}"):
+                        elif decision == 'Rechazada':
                             self.rechazar_solicitud(solicitud['id_solicitud'])
-                    
-                    with col_btn3:
-                        if st.button("⏳ Diferir", key=f"diferir_{solicitud['id_solicitud']}"):
-                            self.diferir_solicitud(solicitud['id_solicitud'])
+                        else:
+                            st.info("Seleccione Aprobada o Rechazada para procesar la solicitud")
                     
                     st.divider()
                 
         except Exception as e:
-            st.error("Error al cargar las solicitudes pendientes")
+            st.error(f"Error al cargar las solicitudes pendientes: {str(e)}")
             st.info("Por favor, intente nuevamente más tarde")
     
     def mostrar_historial_facilitador(self):

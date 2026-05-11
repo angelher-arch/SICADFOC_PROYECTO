@@ -59,35 +59,36 @@ class GestionEstudiantil:
         try:
             from database import execute_query
             import pandas as pd
+            import streamlit as st
             
-            # Obtener lista de estudiantes (solo columnas existentes)
-            estudiantes = execute_query("""
-                SELECT e.cedula_estudiante,
-                       p.nombre,
-                       p.apellido,
-                       p.email,
-                       p.telefono,
-                       p.fecha_nacimiento,
-                       p.genero,
-                       e.id_carrera,
-                       c.nombre_carrera
-                FROM estudiante e
-                LEFT JOIN persona p ON e.id_persona = p.id
-                LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
-                ORDER BY p.apellido, p.nombre
-            """)
-            print(f"DEBUG_ESTUDIANTIL_DB: Ejecutando consulta de estudiantes...")
-            print(f"DEBUG_ESTUDIANTIL_DB: Resultado: {len(estudiantes) if estudiantes else 0} estudiantes encontrados")
+            # Consulta SQL optimizada para traer todos los datos necesarios (misma estructura que profesores)
+            query = """
+            SELECT 
+                e.cedula_estudiante,
+                p.nombre,
+                p.apellido,
+                p.email,
+                p.telefono,
+                p.fecha_nacimiento,
+                p.genero,
+                e.id_carrera,
+                c.nombre_carrera
+            FROM estudiante e
+            LEFT JOIN persona p ON e.id_persona = p.id
+            LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
+            ORDER BY p.apellido, p.nombre
+            """
             
-            if estudiantes and len(estudiantes) > 0:
+            # Ejecutar consulta única
+            result = execute_query(query, fetch_all=True)
+            
+            if result and len(result) > 0:
                 # Convertir a DataFrame
-                df = pd.DataFrame(estudiantes)
                 df = pd.DataFrame(result)
                 
-                # Renombrar columnas para mejor visualización
+                # Renombrar columnas para mejor visualización (solo 9 columnas reales)
                 df.columns = ['Cédula', 'Nombre', 'Apellido', 'Email', 'Teléfono', 
-                             'Fecha Nacimiento', 'Género', 'Dirección', 'Carrera', 
-                             'Semestre', 'Estado']
+                             'Fecha Nacimiento', 'Género', 'Carrera', 'Nombre Carrera']
                 
                 # Mostrar estadísticas
                 st.info(f"Total de estudiantes registrados: {len(df)}")
@@ -95,7 +96,7 @@ class GestionEstudiantil:
                 # Mostrar DataFrame con opciones de filtrado
                 st.dataframe(df, width='stretch', hide_index=True)
                 
-                # Opciones de exportación
+                # Opciones de exportación con control RBAC
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Exportar a CSV", key="export_estudiantes"):
@@ -108,12 +109,16 @@ class GestionEstudiantil:
                         )
                 
                 with col2:
-                    if st.button("Actualizar Lista", key="refresh_estudiantes"):
+                    # Solo administradores pueden actualizar
+                    is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+                    if st.button("Actualizar Lista", key="refresh_estudiantes", disabled=not is_admin):
                         st.rerun()
                     
             else:
                 st.warning("No se encontraron estudiantes registrados.")
-                st.info("Use la pestaña 'Registrar Nuevo Estudiante' para agregar nuevos registros.")
+                is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+                if is_admin:
+                    st.info("Use la pestaña 'Registrar Nuevo Estudiante' para agregar nuevos registros.")
             
         except Exception as e:
             st.error(f"Error al cargar el listado de estudiantes: {e}")
@@ -122,19 +127,26 @@ class GestionEstudiantil:
     def consultar_editar_estudiante(self):
         """Función para consultar y editar estudiante por cédula"""
         try:
+            # Control de acceso - Solo administradores pueden editar
+            is_admin = st.session_state.get('usuario_rol') == 'Administrador'
+            
             # Formulario de búsqueda por cédula
             cedula_busqueda = st.text_input("Ingrese Cédula del Estudiante:", key="cedula_busqueda_estudiante")
 
-            if st.button("Buscar Estudiante", type="primary", key="btn_buscar_estudiante"):
+            # Botón de búsqueda con control RBAC
+            button_label = "Buscar Estudiante" if is_admin else "Ver Estudiante (Solo Lectura)"
+            button_type = "primary" if is_admin else "secondary"
+            
+            if st.button(button_label, type=button_type, key="btn_buscar_estudiante"):
                 if cedula_busqueda:
-                    self.mostrar_formulario_edicion_estudiante(cedula_busqueda)
+                    self.mostrar_formulario_edicion_estudiante(cedula_busqueda, allow_edit=is_admin)
                 else:
                     st.warning("Por favor, ingrese una cédula para buscar.")
 
         except Exception as e:
             st.error(f"Error en sección de consulta/edición: {e}")
     
-    def mostrar_formulario_edicion_estudiante(self, cedula):
+    def mostrar_formulario_edicion_estudiante(self, cedula, allow_edit=True):
         """Mostrar formulario para editar estudiante existente"""
         try:
             from database import execute_query

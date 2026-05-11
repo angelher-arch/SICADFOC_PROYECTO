@@ -244,6 +244,9 @@ class AuthSystemUnificado:
                             st.session_state.user = user_info
                             st.session_state.username = user_info.get('login_usuario')
                             st.session_state.role = user_info.get('rol')
+                            st.session_state.user_role = user_info.get('rol')
+                            st.session_state.user_cedula = user_info.get('cedula_usuario')
+                            st.session_state.cedula = user_info.get('cedula_usuario')
                             
                             # Marcar que el login fue exitoso
                             login_exitoso = True

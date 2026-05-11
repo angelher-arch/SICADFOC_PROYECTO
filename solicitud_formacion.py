@@ -244,7 +244,7 @@ class SolicitudFormacion:
             st.error(f"Error obteniendo talleres disponibles: {e}")
             return []
     
-    def obtener_facilitador_taller(self, id_taller: int) -> Optional[Dict]:
+    def obtener_facilitador_taller(self, id_taller: str) -> Optional[Dict]:
         """Obtiene el facilitador asignado a un taller"""
         try:
             query = """
@@ -268,7 +268,7 @@ class SolicitudFormacion:
             st.error(f"Error obteniendo facilitador: {e}")
             return None
     
-    def verificar_solicitud_existente(self, cedula_estudiante: str, id_taller: int) -> bool:
+    def verificar_solicitud_existente(self, cedula_estudiante: str, id_taller: str) -> bool:
         """Verifica si ya existe una solicitud para el mismo taller"""
         try:
             query = """
