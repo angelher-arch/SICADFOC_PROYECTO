@@ -20,6 +20,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+@st.cache_resource
+def apply_background_css():
+    """Aplicar CSS de fondo IUJO desde archivo estático persistente"""
+    st.markdown(
+        '<link rel="stylesheet" type="text/css" href="/static/styles.css">',
+        unsafe_allow_html=True
+    )
+
+# Aplicar fondo al inicio
+apply_background_css()
+
 # FORZAR UTF-8 EN TODA LA APLICACIÓN
 if sys.platform.startswith('win'):
     try:
@@ -28,6 +39,8 @@ if sys.platform.startswith('win'):
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
     except:
         pass
+
+# FORZAR UTF-8 EN TODA LA APLICACIÓN
 
 def asegurar_estructura_bd():
     """Función de autoreparación de base de datos - optimizada para producción"""
@@ -193,8 +206,35 @@ try:
 except Exception as e:
     pass  # Error precargando carreras
 
+def normalizar_cedula(cedula_str):
+    """
+    Normaliza un número de identificación (cédula) venezolana.
+    
+    Reglas:
+    - Limpieza: Elimina puntos, espacios y caracteres especiales innecesarios.
+    - Si solo números, añade 'V-'.
+    - Si 'v' o 'V' seguidas de números (con o sin guion), convierte a 'V-'.
+    - Formato final: V-12345678
+    - Si inválido, retorna mensaje de error.
+    """
+    import re
+    
+    # Limpiar: quitar puntos, espacios, y caracteres no alfanuméricos excepto guiones
+    cedula_str = re.sub(r'[^\w-]', '', cedula_str)
+    
+    # Ahora, verificar
+    if cedula_str.isdigit():
+        return f'V-{cedula_str}'
+    elif re.match(r'^[vV]-?\d+$', cedula_str):
+        # Extraer números
+        numero = re.sub(r'[^0-9]', '', cedula_str)
+        return f'V-{numero}'
+    else:
+        return "Formato inválido. Por favor, ingresa una cédula válida (solo números o V- seguido de números)."
+
 def gestion_permisos():
     """Módulo de Gestión de Permisos - Solo para Administradores"""
+    apply_background_css()  # Aplicar fondo persistente
     # Usar el nuevo módulo de gestión de permisos
     mostrar_gestion_permisos()
     
@@ -318,6 +358,7 @@ def gestion_permisos():
 
 def validar_esquema_principal():
     """Valida que las tablas principales existan antes de permitir operaciones"""
+    apply_background_css()  # Aplicar fondo persistente
     try:
         # Obtener manager y ejecutar test de conexión
         db_manager = DatabaseManager()
