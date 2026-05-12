@@ -1581,56 +1581,73 @@ def authenticate_user(username, password):
         if not cleaned_username or not password_str:
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-        # Homologar cédula para normalizar formato
-        cedula_homologada = homologar_cedula(cleaned_username)
-        solo_digitos = ''.join(ch for ch in cleaned_username if ch.isdigit())
-        cedula_sin_prefijo = solo_digitos
-        cedula_v_minuscula = f"v-{solo_digitos}" if solo_digitos else ''
+        # Generar múltiples formatos de cédula para búsqueda flexible
+        possible_cedulas = set()
         
-        # Generar hash SHA256 (librería consistente)
+        # Agregar la entrada limpia
+        possible_cedulas.add(cleaned_username)
+        
+        # Homologar cédula
+        cedula_homologada = homologar_cedula(cleaned_username)
+        possible_cedulas.add(cedula_homologada)
+        
+        # Extraer solo dígitos
+        solo_digitos = ''.join(ch for ch in cleaned_username if ch.isdigit())
+        if solo_digitos:
+            possible_cedulas.add(solo_digitos)
+            possible_cedulas.add(f"V-{solo_digitos}")
+            possible_cedulas.add(f"v-{solo_digitos}")
+        
+        # Si tiene puntos, agregar versión sin puntos
+        if '.' in cleaned_username:
+            sin_puntos = cleaned_username.replace('.', '')
+            possible_cedulas.add(sin_puntos)
+            cedula_sin_puntos_homologada = homologar_cedula(sin_puntos)
+            possible_cedulas.add(cedula_sin_puntos_homologada)
+        
+        # Convertir a lista para SQL
+        cedula_list = list(possible_cedulas)
+        placeholders = ', '.join(['%s'] * len(cedula_list))
+        
+        # Generar hash SHA256
         hashed_password = hashlib.sha256(password_str.encode('utf-8')).hexdigest()
 
-        # Usar get_connection directo para evitar problemas de doble conexión
+        # Usar get_connection directo
         conn = get_connection()
         cursor = conn.cursor()
         
         try:
-            # Consulta SQL - usar nombres reales de columnas
-            query = """
+            # Consulta SQL usando IN para múltiples formatos
+            query = f"""
             SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo, u.contrasena,
                    p.nombre, p.apellido, p.telefono, p.direccion
             FROM usuarios u
             LEFT JOIN persona p ON u.cedula_usuario = p.cedula
-            WHERE (u.login_usuario = %s OR u.cedula_usuario = %s OR u.cedula_usuario = %s OR u.cedula_usuario = %s) AND u.activo = TRUE
+            WHERE u.cedula_usuario IN ({placeholders}) AND u.activo = TRUE
             LIMIT 1
             """
             
-            # Ejecutar consulta con múltiples formatos de cédula
-            cursor.execute(
-                query,
-                (
-                    cleaned_username,
-                    cedula_homologada,
-                    cedula_sin_prefijo,
-                    cedula_v_minuscula
-                )
-            )
+            # Ejecutar consulta
+            cursor.execute(query, tuple(cedula_list))
             user_row = cursor.fetchone()
 
             if not user_row:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-            # Validación de hash - usar columna 'contrasena'
-            stored_password = str(user_row[4] or '').strip()  # user_row[4] es la columna contrasena
-            cedula_normalizada_para_validacion = homologar_cedula(user_row[0])
-            es_acceso_emergencia = solo_digitos == '14300385' or cedula_normalizada_para_validacion == 'V-14300385'
+            # Validación de hash
+            stored_password = str(user_row[4] or '').strip()
             password_ok = stored_password == hashed_password
-
+            
+            # Acceso de emergencia para Angel Hernandez
+            cedula_normalizada = homologar_cedula(user_row[0])
+            es_acceso_emergencia = cedula_normalizada == 'V-14300385'
+            
             if not password_ok and not es_acceso_emergencia:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
             nombre_completo = f"{user_row[5] if user_row[5] else ''} {user_row[6] if user_row[6] else ''}".strip()
             rol_usuario = user_row[2] or 'Administrador'
+            
             if es_acceso_emergencia and rol_usuario not in ['Administrador', 'Profesor']:
                 rol_usuario = 'Administrador'
 
