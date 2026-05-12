@@ -176,12 +176,30 @@ def get_db_connection():
             'password': config['password'],
             'cursor_factory': RealDictCursor,
             'sslmode': config.get('sslmode', 'prefer'),
-            'connect_timeout': 10
+            'connect_timeout': 10,
+            'options': '-c client_encoding=UTF8'
         }
         
         db_connection = psycopg2.connect(**connection_params)
+        db_connection.set_client_encoding('UTF8')
         print("DEBUG_DB: Nuevo canal único creado")
         return db_connection
+    except UnicodeDecodeError as e:
+        raw_message = None
+        if e.args:
+            first_arg = e.args[0]
+            if isinstance(first_arg, (bytes, bytearray)):
+                try:
+                    raw_message = first_arg.decode('latin-1', errors='replace')
+                except Exception:
+                    raw_message = repr(first_arg)
+            else:
+                raw_message = str(first_arg)
+        else:
+            raw_message = str(e)
+        print(f"DEBUG_DB_ERROR: UnicodeDecodeError creando canal único: {e}")
+        print(f"DEBUG_DB_ERROR_RAW: {raw_message}")
+        raise
     except Exception as e:
         print(f"DEBUG_DB_ERROR: Error creando canal único: {e}")
         raise e
@@ -872,8 +890,10 @@ def get_connection():
                 user="postgres", 
                 password="admin123",
                 host="localhost",
-                port="5432"
+                port="5432",
+                options='-c client_encoding=UTF8'
             )
+            conn.set_client_encoding('UTF8')
             
             print(f"OK: Conexión establecida directamente a db_foc26@localhost:5432")
             
@@ -887,6 +907,22 @@ def get_connection():
             
             return conn
             
+        except UnicodeDecodeError as e:
+            raw_message = None
+            if e.args:
+                first_arg = e.args[0]
+                if isinstance(first_arg, (bytes, bytearray)):
+                    try:
+                        raw_message = first_arg.decode('latin-1', errors='replace')
+                    except Exception:
+                        raw_message = repr(first_arg)
+                else:
+                    raw_message = str(first_arg)
+            else:
+                raw_message = str(e)
+            print(f"ERROR CRÍTICO en conexión directa: UnicodeDecodeError: {e}")
+            print(f"ERROR CRÍTICO RAW: {raw_message}")
+            raise
         except Exception as e:
             print(f"ERROR CRÍTICO en conexión directa: {e}")
             raise Exception(f"Conexión fallida: la base de datos no reconoce la tabla usuarios")
@@ -1606,30 +1642,63 @@ def authenticate_user(username, password):
 
         cedula_list = [v for v in possible_values if v]
         placeholders = ', '.join(['%s'] * len(cedula_list))
+        cedula_list_lower = [v.lower() for v in cedula_list]
 
         hashed_password = hashlib.sha256(password_str.encode('utf-8')).hexdigest()
 
         logger.info(f"DEBUG_AUTH: Username recibido: '{cleaned_username}'")
         logger.info(f"DEBUG_AUTH: Valores posibles: {cedula_list}")
+        logger.info(f"DEBUG_AUTH: Valores posibles lower: {cedula_list_lower}")
         logger.info(f"DEBUG_AUTH: Hash generado: {hashed_password}")
 
-        conn = get_connection()
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
+            # Detectar la columna de contraseña disponible en el esquema actual
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'usuarios'
+                  AND column_name IN ('contrasena', 'password_hash')
+                """
+            )
+            rows = cursor.fetchall()
+            existing_columns = set()
+            for row in rows:
+                if isinstance(row, dict):
+                    existing_columns.add(row.get('column_name'))
+                else:
+                    existing_columns.add(row[0])
+            existing_columns = {col for col in existing_columns if col}
+            logger.info(f"DEBUG_AUTH: Columnas existentes en usuarios: {existing_columns}")
+
+            if 'password_hash' in existing_columns and 'contrasena' in existing_columns:
+                password_expr = "COALESCE(u.contrasena, u.password_hash, '')"
+            elif 'password_hash' in existing_columns:
+                password_expr = "u.password_hash"
+            elif 'contrasena' in existing_columns:
+                password_expr = "u.contrasena"
+            else:
+                logger.error("DEBUG_AUTH: No se encontró columna de contraseña válida en usuarios")
+                return {'success': False, 'message': 'Error de autenticación: configuración de base de datos inválida'}
+
             query = f"""
             SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo,
-                   COALESCE(u.contrasena, u.password_hash, '') AS stored_password,
+                   {password_expr} AS stored_password,
                    p.nombre, p.apellido, p.telefono, p.direccion
             FROM usuarios u
             LEFT JOIN persona p ON u.cedula_usuario = p.cedula
-            WHERE (u.cedula_usuario IN ({placeholders}) OR u.login_usuario IN ({placeholders}))
+            WHERE (LOWER(u.cedula_usuario) IN ({placeholders})
+                   OR LOWER(u.login_usuario) IN ({placeholders}))
               AND u.activo = TRUE
             LIMIT 1
             """
 
-            params = tuple(cedula_list + cedula_list)
+            params = tuple(cedula_list_lower + cedula_list_lower)
             logger.info(f"DEBUG_AUTH: Query de autenticación: {query}")
+            logger.info(f"DEBUG_AUTH: Query params: {params}")
             cursor.execute(query, params)
             user_row = cursor.fetchone()
 
@@ -1638,7 +1707,7 @@ def authenticate_user(username, password):
             if not user_row:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-            stored_password = str(user_row[4] or '').strip()
+            stored_password = str(user_row.get('stored_password', '') or '').strip()
             logger.info(f"DEBUG_AUTH: Stored password length: {len(stored_password)}")
 
             password_ok = False
@@ -1654,18 +1723,18 @@ def authenticate_user(username, password):
             if not password_ok:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-            nombre_completo = f"{user_row[5] if user_row[5] else ''} {user_row[6] if user_row[6] else ''}".strip()
-            rol_usuario = user_row[2] or 'Administrador'
+            nombre_completo = f"{user_row.get('nombre', '') or ''} {user_row.get('apellido', '') or ''}".strip()
+            rol_usuario = user_row.get('rol') or 'Administrador'
 
             return {
                 'success': True,
                 'user': {
-                    'cedula_usuario': user_row[0],
-                    'login_usuario': user_row[1],
+                    'cedula_usuario': user_row.get('cedula_usuario'),
+                    'login_usuario': user_row.get('login_usuario'),
                     'rol': rol_usuario,
                     'nombre_completo': nombre_completo,
-                    'telefono': user_row[7] if len(user_row) > 7 else None,
-                    'direccion': user_row[8] if len(user_row) > 8 else None
+                    'telefono': user_row.get('telefono'),
+                    'direccion': user_row.get('direccion')
                 }
             }
         finally:
