@@ -504,7 +504,13 @@ class GestionProfesores:
             st.warning("⚠️ Esta acción es irreversible. ¿Está seguro de continuar?")
             
             # Lista de profesores para selección
-            query_profesores = "SELECT cedula_profesor, nombre || ' ' || apellido AS nombre_completo FROM profesor ORDER BY nombre"
+            query_profesores = """
+                SELECT p.cedula_profesor, per.nombre || ' ' || per.apellido AS nombre_completo 
+                FROM profesor p 
+                JOIN persona per ON p.cedula_profesor = per.cedula 
+                WHERE p.activo = true
+                ORDER BY per.nombre, per.apellido
+            """
             resultado_profesores = execute_query(query_profesores)
             
             if resultado_profesores:

@@ -39,6 +39,34 @@ def crear_taller(rol_usuario):
     """Crear taller usando mapeo por diccionario"""
     st.markdown("### Nuevo Taller")
     
+    # Obtener lista de profesores para el selectbox
+    try:
+        # Verificar si la columna 'activo' existe en la tabla profesor
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'profesor' AND column_name = 'activo' AND table_schema = 'public'
+        """)
+        activo_exists = cursor.fetchone() is not None
+        conn.close()
+        
+        # Construir consulta condicional
+        where_clause = "WHERE p.activo = true" if activo_exists else ""
+        
+        profesores_query = f"""
+            SELECT p.cedula_profesor, per.nombre || ' ' || per.apellido AS nombre_completo
+            FROM profesor p 
+            JOIN persona per ON p.cedula_profesor = per.cedula 
+            {where_clause}
+            ORDER BY per.nombre, per.apellido
+        """
+        profesores_result = execute_query(profesores_query, fetch_all=True)
+        profesores_options = ["Sin asignar"] + [f"{prof['nombre_completo']} ({prof['cedula_profesor']})" for prof in profesores_result] if profesores_result else ["Sin asignar"]
+    except Exception as e:
+        st.warning(f"Error al cargar profesores: {e}")
+        profesores_options = ["Sin asignar"]
+    
     # Usar contenedor único para evitar conflicto con otros formularios
     with st.container():
         col1, col2 = st.columns(2)
@@ -51,10 +79,10 @@ def crear_taller(rol_usuario):
             
         with col2:
             cupo = st.number_input("Cupo Máximo*", min_value=1, value=30)
-            cohorte = st.selectbox("Cohorte*", options=[1, 2], format_func=lambda x: str(x), index=0, help="Seleccione la cohorte del taller")
+            cohorte = st.selectbox("Cohorte*", options=[1, 2], index=0, help="Seleccione la cohorte del taller")
             tomo = st.text_input("Tomo*", placeholder="001", help="Número de tomo del certificado")
             folio = st.text_input("Folio*", placeholder="12345", help="Número de folio del certificado")
-            facilitador = st.text_input("Facilitador", placeholder="Nombre del facilitador")
+            facilitador = st.text_input("Facilitador", placeholder="Ingrese el nombre del facilitador", help="Nombre del profesor facilitador")
         
         # Mostrar vista previa del código (generación en tiempo real)
         if tomo and cohorte:
@@ -72,8 +100,8 @@ def crear_taller(rol_usuario):
             else:
                 codigo_auto = ""
             
-            # Validar solo los campos que el usuario SÍ toca (excluir código_certificado)
-            campos_obligatorios = [nombre, descripcion, fecha_inicio, fecha_fin, cupo, cohorte, tomo, folio, facilitador]
+            # Validar solo los campos que el usuario SÍ toca (excluir código_certificado y facilitador)
+            campos_obligatorios = [nombre, descripcion, fecha_inicio, fecha_fin, cupo, cohorte, tomo, folio]
             
             # Depuración: Mostrar qué campos están vacíos
             if not all(campos_obligatorios):
@@ -95,8 +123,6 @@ def crear_taller(rol_usuario):
                     st.write("❌ Tomo*")
                 if not folio:
                     st.write("❌ Folio*")
-                if not facilitador:
-                    st.write("❌ Facilitador*")
                 return
             
             if all(campos_obligatorios):
@@ -126,45 +152,65 @@ def crear_taller(rol_usuario):
                             return
 
                         profesor_cedula = None
-                        if facilitador:
+                        if facilitador and facilitador.strip():
+                            # Verificar si la columna 'activo' existe en la tabla profesor
+                            cursor.execute("""
+                                SELECT 1 FROM information_schema.columns 
+                                WHERE table_name = 'profesor' AND column_name = 'activo' AND table_schema = 'public'
+                            """)
+                            activo_exists = cursor.fetchone() is not None
+                            
+                            # Construir consulta condicional
+                            where_clause = "AND p.activo = true" if activo_exists else ""
+                            
+                            # Buscar profesor por nombre exacto
                             cursor.execute(
-                                "SELECT cedula_profesor FROM profesor WHERE cedula_profesor = %s",
-                                (facilitador,)
+                                f"""
+                                SELECT p.cedula_profesor 
+                                FROM profesor p 
+                                JOIN persona per ON p.cedula_profesor = per.cedula 
+                                WHERE per.nombre || ' ' || per.apellido ILIKE %s
+                                {where_clause}
+                                """,
+                                (facilitador.strip(),)
                             )
-                            fila_profesor = cursor.fetchone()
-                            if fila_profesor:
-                                profesor_cedula = fila_profesor[0]
+                            profesor_result = cursor.fetchone()
+                            if profesor_result:
+                                profesor_cedula = profesor_result[0]
                             else:
-                                st.warning(
-                                    "El facilitador ingresado no corresponde a una cédula de profesor válida. "
-                                    "El taller se creará sin profesor asignado."
-                                )
+                                st.warning(f"No se encontró profesor con nombre '{facilitador}'. El taller se creará sin profesor asignado.")
 
                         query_taller = """
                             INSERT INTO public.taller (
                                 nombre_taller,
-                                descripcion_taller,
-                                cedula_profesor,
+                                ampliacion,
                                 capacidad_maxima,
                                 duracion_horas,
                                 fecha_inicio,
                                 fecha_fin,
                                 estado,
-                                tipo_taller
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                tipo_taller,
+                                cedula_profesor,
+                                cohorte,
+                                tomo,
+                                folio
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             RETURNING id_taller
                         """
 
                         valores_taller = (
                             nombre,
                             descripcion,
-                            profesor_cedula,
                             cupo,
-                            20,
+                            20,  # duración por defecto
                             fecha_inicio,
                             fecha_fin,
                             'activo',
-                            'regular'
+                            'regular',
+                            profesor_cedula,
+                            cohorte,
+                            tomo,
+                            folio
                         )
 
                         cursor.execute(query_taller, valores_taller)
@@ -172,31 +218,55 @@ def crear_taller(rol_usuario):
 
                         query_formacion = """
                             INSERT INTO public.formacion_complementaria (
+                                codigo_formacion,
                                 id_taller,
-                                nombre,
-                                descripcion,
-                                horas,
+                                nombre_taller,
+                                observacion,
+                                fecha_inicio,
+                                fecha_fin,
+                                tipo_formacion,
+                                hora_inicio,
+                                hora_finalizacion,
+                                cohorte,
+                                tomo,
+                                folio,
+                                facilitador,
                                 codigo_certificado,
-                                id_usuario
-                            ) VALUES (%s, %s, %s, %s, %s, %s)
-                            RETURNING id_formacion
+                                cupo_maximo,
+                                cedula_profesor
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            RETURNING codigo_formacion
                         """
 
+                        # Generar código único para formación
+                        import datetime
+                        codigo_formacion = f"FORM-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+
                         valores_formacion = (
+                            codigo_formacion,
                             id_taller_creado,
                             nombre,
                             descripcion,
-                            20,
+                            fecha_inicio,
+                            fecha_fin,
+                            'complementaria',
+                            '08:00',
+                            '12:00',
+                            cohorte,
+                            tomo,
+                            folio,
+                            facilitador if facilitador else None,
                             codigo_auto,
-                            st.session_state.cedula
+                            cupo,
+                            profesor_cedula
                         )
 
                         cursor.execute(query_formacion, valores_formacion)
-                        id_formacion_creado = cursor.fetchone()[0]
+                        codigo_formacion_creado = cursor.fetchone()[0]
                         conn.commit()
 
                         st.success(
-                            f"Taller creado con éxito. id_taller={id_taller_creado}, id_formacion={id_formacion_creado}"
+                            f"Taller creado con éxito. id_taller={id_taller_creado}, codigo_formacion={codigo_formacion_creado}"
                         )
                         st.rerun()
 
@@ -225,12 +295,12 @@ def listar_talleres():
         # Consulta SQL
         query = """
             SELECT fc.id_taller,
-                   fc.nombre AS nombre_taller,
-                   t.fecha_inicio,
+                   t.nombre_taller,
+                   fc.fecha_inicio,
                    t.capacidad_maxima
             FROM formacion_complementaria fc
-            LEFT JOIN taller t ON fc.id_taller = t.id_taller
-            ORDER BY t.fecha_inicio DESC
+            LEFT JOIN taller t ON fc.id_taller = t.id_taller::text
+            ORDER BY fc.fecha_inicio DESC
         """
 
         cursor.execute(query)
@@ -254,7 +324,7 @@ def listar_talleres():
             if st.button("Cargar Taller para Edición", type="primary"):
                 if id_seleccionado:
                     # Verificar que el taller exista
-                    query_check = "SELECT id_taller FROM formacion_complementaria WHERE id_taller = %s"
+                    query_check = "SELECT id_taller FROM formacion_complementaria WHERE id_taller = %s::text"
                     cursor.execute(query_check, (id_seleccionado,))
                     
                     if cursor.fetchone():

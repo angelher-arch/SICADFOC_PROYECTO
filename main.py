@@ -60,45 +60,43 @@ def asegurar_estructura_bd():
             return True
         except Exception as e:
             cursor.close()
+            # Tabla no encontrada, intentar reparación silenciosa
+            pass
         
-        # 3. Ejecutar script de sincronización
+        # 3. Ejecutar script de sincronización si existe
         script_path = os.path.join(os.path.dirname(__file__), 'sincronizacion_tablas.sql')
         
-        if not os.path.exists(script_path):
-            # Error: Script no encontrado
+        if os.path.exists(script_path):
+            try:
+                # Leer y ejecutar script línea por línea
+                with open(script_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    statements = [stmt.strip() for stmt in content.split(';') if stmt.strip()]
+                
+                for statement in statements:
+                    try:
+                        cursor.execute(statement)
+                    except Exception:
+                        # Continuar con la siguiente sentencia
+                        pass
+                
+                conn.commit()
+                
+                # 4. Verificar post-reparación
+                cursor.execute("SELECT 1 FROM public.usuarios LIMIT 1")
+                cursor.close()
+                conn.close()
+                
+                return True
+                
+            except Exception:
+                pass
+        else:
             conn.close()
-            return False
         
-        # Ejecutando script de sincronización
+        return False
         
-        # Leer y ejecutar script
-        with open(script_path, 'r', encoding='utf-8') as f:
-            sql_content = f.read()
-        
-        cursor = conn.cursor()
-        cursor.execute(sql_content)
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        # Script de sincronización ejecutado exitosamente
-        
-        # 4. Verificar post-reparación
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM public.usuarios LIMIT 1")
-        cursor.close()
-        conn.close()
-        
-        # Tabla 'usuarios' creada y validada post-reparación
-        return True
-        
-    except Exception as e:
-        try:
-            # Error crítico en autoreparación
-            pass
-        except UnicodeEncodeError:
-            pass
+    except Exception:
         return False
 
 # EJECUTAR AUTOREPARACIÓN ANTES DE CARGAR MÓDULOS
@@ -399,74 +397,24 @@ def validar_esquema_principal():
         return False
 
 # IMPORTACIONES DE MÓDULOS PRINCIPALES
-print(">>> IMPORTANDO MÓDULOS PRINCIPALES...")
 try:
-    print(">>> Importando auth_unificado...")
     from auth_unificado import AuthSystemUnificado, gestion_usuarios_main, registro_usuario_main
-    print(">>> auth_unificado importado correctamente")
-    
-    print(">>> Importando seguridad...")
     from seguridad import tiene_permiso, SeguridadFOC26
-    print(">>> seguridad importado correctamente")
-    
-    print(">>> Importando gestion_estudiantil...")
     from gestion_estudiantil import gestion_estudiantil_main
-    print(">>> gestion_estudiantil importado correctamente")
-    
-    print(">>> Importando gestion_profesores...")
     from gestion_profesores import gestion_profesores_main
-    print(">>> gestion_profesores importado correctamente")
-    
-    print(">>> Importando formacion_complementaria...")
     from formacion_complementaria import modulo_formacion_complementaria
-    print(">>> formacion_complementaria importado correctamente")
-    
-    print(">>> Importando inscripciones...")
     from inscripciones import inscripciones_main
-    print(">>> inscripciones importado correctamente")
-    
-    print(">>> Importando gestor_certificaciones...")
     from gestor_certificaciones import gestor_certificaciones_unificado
-    print(">>> gestor_certificaciones importado correctamente")
-    
-    print(">>> Importando editor_certificados...")
     from editor_certificados import editor_certificados_main
-    print(">>> editor_certificados importado correctamente")
-    
-    print(">>> Importando reportes...")
     from reportes import reportes
-    print(">>> reportes importado correctamente")
-    
-    print(">>> Importando gestion_permisos...")
     from gestion_permisos import gestion_permisos
-    print(">>> gestion_permisos importado correctamente")
-    
-    print(">>> Importando gestion_carreras...")
     from gestion_carreras import gestion_carreras
-    print(">>> gestion_carreras importado correctamente")
-    
-    print(">>> Importando solicitud_formacion...")
     from solicitud_formacion import solicitud_formacion_main
-    print(">>> solicitud_formacion importado correctamente")
-    
-    print(">>> Importando gestion_solicitudes...")
     from gestion_solicitudes import gestion_solicitudes_main
-    print(">>> gestion_solicitudes importado correctamente")
-    
-    print(">>> Importando formacion_extemporanea...")
     from formacion_extemporanea import formacion_extemporanea_main
-    print(">>> formacion_extemporanea importado correctamente")
-    
-    print(">>> Importando configuracion...")
     from configuracion import configuracion_main
-    print(">>> configuracion importado correctamente")
-    
-    print(">>> TODOS LOS MÓDULOS IMPORTADOS CORRECTAMENTE")
     
 except ImportError as e:
-    print(f">>> ERROR CRÍTICO: ImportError al cargar módulos - {e}")
-    import traceback
-    print(f">>> ERROR CRÍTICO: Traceback - {traceback.format_exc()}")
     st.error(f"Error al cargar el sistema: {e}")
     st.error("Por favor contacte al administrador")
     sys.exit(1)
