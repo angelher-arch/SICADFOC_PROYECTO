@@ -148,6 +148,39 @@ from config import get_database_config, log_environment
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+PUBLIC_SCHEMA = 'public'
+PUBLIC_USUARIOS_TABLE = 'public.usuarios'
+
+
+def listar_tablas_publicas(conn):
+    """Retorna lista de tablas en esquema público para diagnóstico."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_schema = %s
+            ORDER BY table_name
+            """,
+            (PUBLIC_SCHEMA,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        tables = []
+        for row in rows:
+            if isinstance(row, dict):
+                schema_name = row.get('table_schema')
+                table_name = row.get('table_name')
+            else:
+                schema_name, table_name = row[0], row[1]
+            if schema_name and table_name:
+                tables.append(f"{schema_name}.{table_name}")
+        return tables
+    except Exception as e:
+        print(f"DEBUG_DB: No se pudo listar tablas públicas: {e}")
+        return []
+
 class DatabaseStructureError(Exception):
     """Excepción personalizada para errores de estructura de base de datos"""
     pass
@@ -177,7 +210,7 @@ def get_db_connection():
             'cursor_factory': RealDictCursor,
             'sslmode': config.get('sslmode', 'prefer'),
             'connect_timeout': 10,
-            'options': '-c client_encoding=UTF8'
+            'options': '-c client_encoding=UTF8 -c search_path=public'
         }
         
         db_connection = psycopg2.connect(**connection_params)
@@ -260,6 +293,7 @@ class DatabaseManager:
             }
             
             self._connection = psycopg2.connect(**connection_params)
+            self._connection.set_client_encoding('UTF8')
             
             # Guardar conexión global (Canal Único)
             db_connection = self._connection
@@ -326,7 +360,8 @@ class DatabaseManager:
                 user=self.config['user'],
                 password=self.config['password'],
                 sslmode='prefer',
-                connect_timeout=10
+                connect_timeout=10,
+                options='-c client_encoding=UTF8 -c search_path=public'
             )
             return self._connection
         except Exception as e:
@@ -726,7 +761,7 @@ class DatabaseManager:
             test_result['database_info']['tables'] = tables
             
             # Contar usuarios
-            cursor.execute("SELECT COUNT(*) as count FROM usuarios")
+            cursor.execute("SELECT COUNT(*) as count FROM public.usuarios")
             user_count = cursor.fetchone()
             user_count_dict = self._row_to_dict(user_count, cursor.description)
             test_result['database_info']['user_count'] = (
@@ -862,7 +897,7 @@ def get_db_session():
         print("DEBUG: Esquema forzado a 'public'")
         
         # VERIFICACIÓN FINAL: Probar consulta real
-        cursor.execute("SELECT COUNT(*) as total FROM usuarios")
+        cursor.execute("SELECT COUNT(*) as total FROM public.usuarios")
         result = cursor.fetchone()
         print(f"DEBUG: Consulta de prueba ejecutada - Total usuarios: {result}")
         
@@ -973,7 +1008,7 @@ def verificar_y_forzar_schema():
             raise SystemExit(error_msg)
         
         # 5. Validar acceso a tabla usuarios
-        cursor.execute("SELECT COUNT(*) FROM usuarios;")
+        cursor.execute("SELECT COUNT(*) FROM public.usuarios;")
         result = cursor.fetchone()
         user_count = result['count']
         
@@ -1249,7 +1284,7 @@ def obtener_usuarios_registrados():
         query = """
         SELECT cedula_usuario, login_usuario, rol, activo, 
                CASE WHEN activo THEN 'Activo' ELSE 'Inactivo' END as estado
-        FROM usuarios 
+        FROM public.usuarios 
         ORDER BY cedula_usuario
         """
         resultado = execute_query(query, fetch_all=True)
@@ -1266,7 +1301,7 @@ def obtener_usuarios_registrados():
 def verificar_cedula_existente(cedula):
     """Verifica si la cédula ya existe en la base de datos"""
     try:
-        query = "SELECT COUNT(*) as count FROM usuarios WHERE cedula_usuario = %s"
+        query = "SELECT COUNT(*) as count FROM public.usuarios WHERE cedula_usuario = %s"
         resultado = execute_query(query, (cedula.strip(),), fetch_one=True)
         
         if resultado:
@@ -1297,7 +1332,7 @@ def crear_usuario_transaccional(cedula_usuario, login_usuario, contrasena, rol, 
         
         # Insertar usuario
         query_insert = """
-        INSERT INTO usuarios (cedula_usuario, login_usuario, contrasena, rol, activo)
+        INSERT INTO public.usuarios (cedula_usuario, login_usuario, contrasena, rol, activo)
         VALUES (%s, %s, %s, %s, %s)
         """
         
@@ -1344,7 +1379,7 @@ def actualizar_usuario_transaccional(cedula_usuario, login_usuario=None, rol=Non
         valores.append(cedula_usuario)
         
         query_update = f"""
-        UPDATE usuarios 
+        UPDATE public.usuarios 
         SET {', '.join(campos_actualizar)}
         WHERE cedula_usuario = %s
         """
@@ -1382,7 +1417,7 @@ def eliminar_usuario_transaccional(cedula_usuario):
             }
         
         # Eliminar usuario
-        query_delete = "DELETE FROM usuarios WHERE cedula_usuario = %s"
+        query_delete = "DELETE FROM public.usuarios WHERE cedula_usuario = %s"
         
         transaction_queries = [(query_delete, (cedula_usuario,))]
         
@@ -1580,7 +1615,7 @@ def ensure_admin_exists():
     try:
         # Verificar si existe administrador
         result = execute_query(
-            "SELECT COUNT(*) as count FROM usuarios WHERE rol = 'Administrador'",
+            "SELECT COUNT(*) as count FROM public.usuarios WHERE rol = 'Administrador'",
             fetch_one=True
         )
         
@@ -1590,7 +1625,7 @@ def ensure_admin_exists():
             admin_queries = [
                 ("INSERT INTO persona (cedula, nombre, apellido, telefono, direccion) VALUES (%s, %s, %s, %s, %s)", 
                  ('V-00000000', 'Administrador', 'del Sistema', '0000000000', 'N/A')),
-                ("INSERT INTO usuarios (cedula_usuario, login_usuario, contrasena, rol, activo) VALUES (%s, %s, %s, %s, %s)",
+                ("INSERT INTO public.usuarios (cedula_usuario, login_usuario, contrasena, rol, activo) VALUES (%s, %s, %s, %s, %s)",
                  ('V-00000000', 'admin', admin_password_hash, 'Administrador', True))
             ]
             
@@ -1660,7 +1695,8 @@ def authenticate_user(username, password):
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_name = 'usuarios'
+                WHERE table_schema = 'public'
+                  AND table_name = 'usuarios'
                   AND column_name IN ('contrasena', 'password_hash')
                 """
             )
@@ -1688,7 +1724,7 @@ def authenticate_user(username, password):
             SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo,
                    {password_expr} AS stored_password,
                    p.nombre, p.apellido, p.telefono, p.direccion
-            FROM usuarios u
+            FROM public.usuarios u
             LEFT JOIN persona p ON u.cedula_usuario = p.cedula
             WHERE (LOWER(u.cedula_usuario) IN ({placeholders})
                    OR LOWER(u.login_usuario) IN ({placeholders}))
@@ -1742,6 +1778,14 @@ def authenticate_user(username, password):
             conn.close()
     except Exception as e:
         logger.error(f"Error en autenticación: {e}")
+        error_text = str(e).lower()
+        if "relation \"public.usuarios\" does not exist" in error_text or "relation \"usuarios\" does not exist" in error_text:
+            try:
+                conn_diag = get_db_connection()
+                public_tables = listar_tablas_publicas(conn_diag)
+                logger.error(f"DEBUG_AUTH: Tablas públicas disponibles: {public_tables}")
+            except Exception as diag_error:
+                logger.error(f"DEBUG_AUTH: Error listando tablas públicas: {diag_error}")
         return {'success': False, 'message': f'Error de autenticación: {str(e)}'}
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ class AuthSystemUnificado:
     def verificar_cedula_existente(self, cedula):
         """Verificar si la cédula ya existe en la base de datos"""
         try:
-            query = "SELECT COUNT(*) as count FROM usuarios WHERE cedula_usuario = %s"
+            query = "SELECT COUNT(*) as count FROM public.usuarios WHERE cedula_usuario = %s"
             result = execute_query(query, (cedula,), fetch_one=True)
             return result.get('count', 0) > 0
         except Exception as e:
@@ -73,7 +73,7 @@ class AuthSystemUnificado:
     def verificar_login_existente(self, login):
         """Verificar si el login ya existe en la base de datos"""
         try:
-            query = "SELECT COUNT(*) as count FROM usuarios WHERE login_usuario = %s"
+            query = "SELECT COUNT(*) as count FROM public.usuarios WHERE login_usuario = %s"
             result = execute_query(query, (login,), fetch_one=True)
             return result.get('count', 0) > 0
         except Exception as e:
@@ -110,7 +110,7 @@ class AuthSystemUnificado:
 
             # Insertar usuario con cédula como username
             query_usuarios = """
-            INSERT INTO usuarios (
+            INSERT INTO public.usuarios (
                 username,
                 password_hash,
                 rol,
@@ -880,7 +880,7 @@ def main():
         conn.commit()
         
         # VALIDACIÓN CRÍTICA: SELECT 1 FROM usuarios LIMIT 1
-        cursor.execute("SELECT 1 FROM usuarios LIMIT 1")
+        cursor.execute("SELECT 1 FROM public.usuarios LIMIT 1")
         result = cursor.fetchone()
         
         cursor.close()

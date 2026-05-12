@@ -54,7 +54,7 @@ def asegurar_estructura_bd():
         cursor = conn.cursor()
         
         try:
-            cursor.execute("SELECT 1 FROM usuarios LIMIT 1")
+            cursor.execute("SELECT 1 FROM public.usuarios LIMIT 1")
             cursor.close()
             conn.close()
             return True
@@ -86,7 +86,7 @@ def asegurar_estructura_bd():
         # 4. Verificar post-reparación
         conn = db_manager.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM usuarios LIMIT 1")
+        cursor.execute("SELECT 1 FROM public.usuarios LIMIT 1")
         cursor.close()
         conn.close()
         
@@ -249,7 +249,9 @@ def gestion_permisos():
             port=5432,
             database="db_foc26",
             user="postgres",
-            password="admin123"
+            password="admin123",
+            connect_timeout=10,
+            options='-c client_encoding=UTF8 -c search_path=public'
         )
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
@@ -257,7 +259,7 @@ def gestion_permisos():
         cursor.execute("""
             SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo,
                    p.nombre, p.apellido, u.modulos_permitidos
-            FROM usuarios u
+            FROM public.usuarios u
             LEFT JOIN persona p ON u.cedula_usuario = p.cedula
             ORDER BY u.rol, p.apellido, p.nombre
         """)
@@ -316,7 +318,7 @@ def gestion_permisos():
                     # Actualizar permisos en la base de datos
                     for cedula, modulos in permisos_actualizados.items():
                         cursor.execute("""
-                            UPDATE usuarios 
+                            UPDATE public.usuarios 
                             SET modulos_permitidos = %s 
                             WHERE cedula_usuario = %s
                         """, (modulos, cedula))
@@ -334,7 +336,7 @@ def gestion_permisos():
         
         cursor.execute("""
             SELECT rol, COUNT(*) as total_usuarios
-            FROM usuarios
+            FROM public.usuarios
             GROUP BY rol
             ORDER BY rol
         """)
