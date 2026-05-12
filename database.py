@@ -915,52 +915,54 @@ def get_db_session():
         raise Exception("No se puede conectar a la base de datos local")
 
 def get_connection():
-        """CONEXIÓN DIRECTA HARDCODED - Sin dependencias externas"""
-        try:
-            print(f"=== CONEXIÓN HARDCODED DIRECTA ===")
+    """
+    CONEXIÓN INTELIGENTE - Prioriza DATABASE_URL, fallback a local
+    """
+    try:
+        # 1. Intentar usar DATABASE_URL (producción)
+        database_url = os.getenv("DATABASE_URL")
+        
+        if database_url:
+            print("=== USANDO CONEXIÓN PRODUCCIÓN (DATABASE_URL) ===")
             
-            # CONEXIÓN DIRECTA Y EXPLÍCITA
+            import urllib.parse
+            parsed = urllib.parse.urlparse(database_url)
+            
+            # Construir conexión desde DATABASE_URL
             conn = psycopg2.connect(
-                dbname="db_foc26",
-                user="postgres", 
-                password="admin123",
-                host="localhost",
-                port="5432",
-                options='-c client_encoding=UTF8'
+                host=parsed.hostname,
+                port=parsed.port or 5432,
+                database=parsed.path[1:] if parsed.path else 'foc26db',
+                user=parsed.username,
+                password=parsed.password,
+                sslmode='require',
+                connect_timeout=10,
+                options='-c client_encoding=UTF8 -c search_path=public'
             )
             conn.set_client_encoding('UTF8')
             
-            print(f"OK: Conexión establecida directamente a db_foc26@localhost:5432")
-            
-            # FORZAR ESQUEMA PUBLIC
-            cursor = conn.cursor()
-            cursor.execute("SET search_path TO public;")
-            conn.commit()
-            cursor.close()
-            
-            print(f"OK: Esquema forzado a public")
-            
+            print(f"OK: Conexión establecida a producción: {parsed.hostname}:{parsed.port}")
             return conn
-            
-        except UnicodeDecodeError as e:
-            raw_message = None
-            if e.args:
-                first_arg = e.args[0]
-                if isinstance(first_arg, (bytes, bytearray)):
-                    try:
-                        raw_message = first_arg.decode('latin-1', errors='replace')
-                    except Exception:
-                        raw_message = repr(first_arg)
-                else:
-                    raw_message = str(first_arg)
-            else:
-                raw_message = str(e)
-            print(f"ERROR CRÍTICO en conexión directa: UnicodeDecodeError: {e}")
-            print(f"ERROR CRÍTICO RAW: {raw_message}")
-            raise
-        except Exception as e:
-            print(f"ERROR CRÍTICO en conexión directa: {e}")
-            raise Exception(f"Conexión fallida: la base de datos no reconoce la tabla usuarios")
+        
+        # 2. Fallback a conexión local
+        print("=== FALLBACK A CONEXIÓN LOCAL ===")
+        
+        conn = psycopg2.connect(
+            dbname="db_foc26",
+            user="postgres", 
+            password="admin123",
+            host="localhost",
+            port="5432",
+            options='-c client_encoding=UTF8 -c search_path=public'
+        )
+        conn.set_client_encoding('UTF8')
+        
+        print(f"OK: Conexión establecida a local: localhost:5432")
+        return conn
+        
+    except Exception as e:
+        print(f"ERROR CRÍTICO en conexión: {e}")
+        raise Exception(f"Conexión fallida: {e}")
 
 def verificar_y_forzar_schema():
     """Función de verificación y forzado de esquema con detención si es necesario"""
