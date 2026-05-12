@@ -569,12 +569,11 @@ def verificar_usuario(usuario_input, clave_input):
         from database import authenticate_user
         from utils_homologacion import homologar_cedula
         
-        # Capturar y homologar cédula del formulario
-        cedula_limpia = usuario_input.strip().upper()
-        cedula_homologada = homologar_cedula(cedula_limpia)
+        # Capturar el valor ingresado en el formulario
+        cedula_limpia = usuario_input.strip()
         
-        # Usar autenticación segura con database.py (ya incluye homologación interna)
-        resultado_auth = authenticate_user(cedula_homologada, clave_input)
+        # Usar autenticación segura con database.py (incluye homologación interna)
+        resultado_auth = authenticate_user(cedula_limpia, clave_input)
 
         if resultado_auth and resultado_auth.get('success', False):
             # Construir resultado compatible con formato esperado

@@ -1574,18 +1574,19 @@ def authenticate_user(username, password):
     try:
         import hashlib
 
-        # Validación de entrada con tratamiento uniforme de tipos
         cleaned_username = str(username or "").strip()
         password_str = str(password or "")
-        
+
         if not cleaned_username or not password_str:
+            logger.info("DEBUG_AUTH: Credenciales incompletas")
             return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
-        # Generar múltiples formatos para búsqueda flexible sobre cédula/login
         possible_values = set()
         possible_values.add(cleaned_username)
         possible_values.add(cleaned_username.lower())
         possible_values.add(cleaned_username.upper())
+        possible_values.add(cleaned_username.replace(' ', ''))
+        possible_values.add(cleaned_username.replace('-', ''))
 
         cedula_homologada = homologar_cedula(cleaned_username)
         possible_values.add(cedula_homologada)
@@ -1595,7 +1596,6 @@ def authenticate_user(username, password):
             possible_values.add(solo_digitos)
             possible_values.add(f"V-{solo_digitos}")
             possible_values.add(f"v-{solo_digitos}")
-            possible_values.add(f"{solo_digitos}")
 
         if '.' in cleaned_username:
             sin_puntos = cleaned_username.replace('.', '')
@@ -1604,14 +1604,18 @@ def authenticate_user(username, password):
             possible_values.add(sin_puntos.upper())
             possible_values.add(homologar_cedula(sin_puntos))
 
-        cedula_list = list(possible_values)
+        cedula_list = [v for v in possible_values if v]
         placeholders = ', '.join(['%s'] * len(cedula_list))
 
         hashed_password = hashlib.sha256(password_str.encode('utf-8')).hexdigest()
 
+        logger.info(f"DEBUG_AUTH: Username recibido: '{cleaned_username}'")
+        logger.info(f"DEBUG_AUTH: Valores posibles: {cedula_list}")
+        logger.info(f"DEBUG_AUTH: Hash generado: {hashed_password}")
+
         conn = get_connection()
         cursor = conn.cursor()
-        
+
         try:
             query = f"""
             SELECT u.cedula_usuario, u.login_usuario, u.rol, u.activo,
@@ -1624,14 +1628,28 @@ def authenticate_user(username, password):
             LIMIT 1
             """
 
-            cursor.execute(query, tuple(cedula_list + cedula_list))
+            params = tuple(cedula_list + cedula_list)
+            logger.info(f"DEBUG_AUTH: Query de autenticación: {query}")
+            cursor.execute(query, params)
             user_row = cursor.fetchone()
+
+            logger.info(f"DEBUG_AUTH: Resultado de consulta: {user_row}")
 
             if not user_row:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
 
             stored_password = str(user_row[4] or '').strip()
-            password_ok = stored_password == hashed_password
+            logger.info(f"DEBUG_AUTH: Stored password length: {len(stored_password)}")
+
+            password_ok = False
+            if stored_password == hashed_password:
+                password_ok = True
+                logger.info("DEBUG_AUTH: Password coincide con hash SHA-256")
+            elif stored_password == password_str:
+                password_ok = True
+                logger.warning("DEBUG_AUTH: Password coincidente en texto plano. Activar revisión de datos en DB.")
+            else:
+                logger.info("DEBUG_AUTH: Password no coincide")
 
             if not password_ok:
                 return {'success': False, 'message': 'Usuario o contraseña incorrectos'}
