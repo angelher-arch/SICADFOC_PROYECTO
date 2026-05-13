@@ -441,7 +441,7 @@ class InscripcionesUnificadas:
                     it.observaciones
                 FROM inscripciones_talleres it
                 LEFT JOIN taller t ON it.id_taller = t.id_taller
-                LEFT JOIN profesor pr ON it.id_facilitador = pr.cedula_profesor
+                LEFT JOIN profesor pr ON CAST(it.id_facilitador AS VARCHAR(20)) = pr.cedula_profesor
                 LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
                 WHERE it.cedula_estudiante = %s
                 ORDER BY it.fecha_creacion DESC
