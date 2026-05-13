@@ -36,22 +36,32 @@ class GestionInscripcionesFacilitador:
                 st.error("No tienes permisos para acceder a este módulo.")
                 return
 
-            # Obtener información del profesor
-            profesor_info = self.obtener_info_profesor()
-            if not profesor_info:
-                st.error("No se encontró información de profesor para tu usuario.")
-                return
+            # Validar si el usuario es Administrador o Facilitador
+            es_administrador = str(self.user_role or '').strip().lower() == 'administrador'
+            profesor_info = None
 
-            st.subheader(f"👤 Facilitador: {profesor_info['nombre_completo']}")
+            if es_administrador:
+                st.subheader("👤 Administrador: Acceso total a todas las inscripciones")
+            else:
+                profesor_info = self.obtener_info_profesor()
+                if not profesor_info:
+                    st.error("No se encontró información de profesor para tu usuario.")
+                    return
+                st.subheader(f"👤 Facilitador: {profesor_info['nombre_completo']}")
 
             # Filtros
             with st.form("filtros_inscripciones"):
                 col1, col2 = st.columns([2, 1])
 
                 with col1:
+                    if es_administrador:
+                        taller_options = ["Todos"] + [f"{t['id_taller']} - {t['nombre_taller']}" for t in self.obtener_talleres_activos()]
+                    else:
+                        taller_options = ["Todos"] + [f"{t['id_taller']} - {t['nombre_taller']}" for t in self.obtener_talleres_profesor(profesor_info['id_profesor'])]
+
                     filtro_taller = st.selectbox(
                         "Filtrar por Taller",
-                        options=["Todos"] + [f"{t['id_taller']} - {t['nombre_taller']}" for t in self.obtener_talleres_profesor(profesor_info['id_profesor'])],
+                        options=taller_options,
                         key="filtro_taller_facilitador"
                     )
 
@@ -66,7 +76,8 @@ class GestionInscripcionesFacilitador:
 
             # Obtener y mostrar inscripciones
             if filtrar_button or 'inscripciones_cache' not in st.session_state:
-                self.cargar_inscripciones(profesor_info['id_profesor'], filtro_taller, filtro_estado)
+                id_profesor = profesor_info['id_profesor'] if not es_administrador else None
+                self.cargar_inscripciones(id_profesor, filtro_taller, filtro_estado)
 
             if 'inscripciones_cache' in st.session_state and st.session_state.inscripciones_cache:
                 self.mostrar_tabla_inscripciones()
@@ -115,7 +126,25 @@ class GestionInscripcionesFacilitador:
             st.error(f"Error obteniendo talleres: {e}")
             return []
 
-    def cargar_inscripciones(self, cedula_profesor: str, filtro_taller: str, filtro_estado: str):
+    def obtener_talleres_activos(self) -> List[Dict]:
+        """Obtiene todos los talleres activos para administradores"""
+        try:
+            query = """
+                SELECT DISTINCT
+                    t.id_taller,
+                    t.nombre_taller,
+                    t.fecha_inicio,
+                    t.fecha_fin
+                FROM taller t
+                WHERE t.estado = 'activo'
+                ORDER BY t.fecha_inicio DESC
+            """
+            return execute_query(query)
+        except Exception as e:
+            st.error(f"Error obteniendo talleres activos: {e}")
+            return []
+
+    def cargar_inscripciones(self, cedula_profesor: Optional[str], filtro_taller: str, filtro_estado: str):
         """Carga inscripciones con filtros aplicados"""
         try:
             # Base query
@@ -137,10 +166,13 @@ class GestionInscripcionesFacilitador:
                 LEFT JOIN taller t ON it.id_taller = t.id_taller
                 LEFT JOIN profesor pr ON CAST(it.id_facilitador AS VARCHAR(20)) = pr.cedula_profesor
                 LEFT JOIN persona p ON pr.cedula_profesor = p.cedula
-                WHERE it.id_facilitador = %s
+                WHERE 1=1
             """
 
-            params = [cedula_profesor]
+            params = []
+            if cedula_profesor:
+                query += " AND it.id_facilitador = %s"
+                params.append(cedula_profesor)
 
             # Aplicar filtro de taller
             if filtro_taller != "Todos":
