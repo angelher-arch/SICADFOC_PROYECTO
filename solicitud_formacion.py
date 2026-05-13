@@ -90,7 +90,7 @@ class SolicitudFormacion:
                        s.nombre_semestre
                 FROM estudiante e
                 LEFT JOIN persona p ON e.id_persona = p.id
-                LEFT JOIN carrera c ON e.id_carrera = c.id
+                LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
                 LEFT JOIN semestre_formacion s ON e.id_semestre_formacion = s.id
                 ORDER BY p.apellido, p.nombre
             """)

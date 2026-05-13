@@ -94,3 +94,21 @@ CREATE TABLE IF NOT EXISTS public.permisos (
 COMMENT ON TABLE public.usuarios IS 'Usuarios del sistema, autenticación y roles';
 COMMENT ON TABLE public.formacion_complementaria IS 'Registros de formación complementaria asociados a talleres';
 COMMENT ON TABLE public.taller IS 'Información de talleres y actividades formativas';
+
+-- Nueva tabla para flujo de estados de inscripción con automatización de certificados
+CREATE TABLE IF NOT EXISTS public.inscripciones_talleres (
+    id_inscripcion SERIAL PRIMARY KEY,
+    cedula_estudiante VARCHAR(20) NOT NULL REFERENCES public.estudiante(cedula_estudiante),
+    id_taller INTEGER NOT NULL REFERENCES public.taller(id_taller),
+    id_facilitador VARCHAR(20) REFERENCES public.profesor(cedula_profesor),
+    estado_estudiante VARCHAR(50) NOT NULL DEFAULT 'Por Inscribir',
+    estado_academico VARCHAR(50),
+    fecha_cambio TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    observaciones TEXT,
+    UNIQUE (cedula_estudiante, id_taller)
+);
+
+COMMENT ON TABLE public.inscripciones_talleres IS 'Flujo de estados de inscripción en talleres con automatización de certificados';
+COMMENT ON COLUMN public.inscripciones_talleres.estado_estudiante IS 'Estados: Por Inscribir, Inscrito, No Inscrito';
+COMMENT ON COLUMN public.inscripciones_talleres.estado_academico IS 'Estados académicos: Inscrito, En Curso, Aprobado, No Aprobado';

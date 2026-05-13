@@ -65,18 +65,13 @@ class GestionEstudiantil:
             query = """
             SELECT 
                 e.cedula_estudiante,
-                p.nombre,
-                p.apellido,
-                p.email,
-                p.telefono,
-                p.fecha_nacimiento,
-                p.genero,
+                e.nombres,
+                e.apellidos,
                 e.id_carrera,
                 c.nombre_carrera
             FROM estudiante e
-            LEFT JOIN persona p ON e.id_persona = p.id
             LEFT JOIN carrera c ON e.id_carrera = c.id_carrera
-            ORDER BY p.apellido, p.nombre
+            ORDER BY e.apellidos, e.nombres
             """
             
             # Ejecutar consulta única
@@ -86,9 +81,8 @@ class GestionEstudiantil:
                 # Convertir a DataFrame
                 df = pd.DataFrame(result)
                 
-                # Renombrar columnas para mejor visualización (solo 9 columnas reales)
-                df.columns = ['Cédula', 'Nombre', 'Apellido', 'Email', 'Teléfono', 
-                             'Fecha Nacimiento', 'Género', 'Carrera', 'Nombre Carrera']
+                # Renombrar columnas para mejor visualización (solo 5 columnas reales)
+                df.columns = ['Cédula', 'Nombre', 'Apellido', 'Carrera', 'Nombre Carrera']
                 
                 # Mostrar estadísticas
                 st.info(f"Total de estudiantes registrados: {len(df)}")

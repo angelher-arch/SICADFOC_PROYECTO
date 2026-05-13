@@ -83,6 +83,7 @@ def crear_taller(rol_usuario):
             tomo = st.text_input("Tomo*", placeholder="001", help="Número de tomo del certificado")
             folio = st.text_input("Folio*", placeholder="12345", help="Número de folio del certificado")
             facilitador = st.text_input("Facilitador", placeholder="Ingrese el nombre del facilitador", help="Nombre del profesor facilitador")
+            estado_taller = st.selectbox("Estado del Taller*", options=["Activo", "En Pausa", "Inactivo"], index=0, help="Estado actual del taller")
         
         # Mostrar vista previa del código (generación en tiempo real)
         if tomo and cohorte:
@@ -101,7 +102,7 @@ def crear_taller(rol_usuario):
                 codigo_auto = ""
             
             # Validar solo los campos que el usuario SÍ toca (excluir código_certificado y facilitador)
-            campos_obligatorios = [nombre, descripcion, fecha_inicio, fecha_fin, cupo, cohorte, tomo, folio]
+            campos_obligatorios = [nombre, descripcion, fecha_inicio, fecha_fin, cupo, cohorte, tomo, folio, estado_taller]
             
             # Depuración: Mostrar qué campos están vacíos
             if not all(campos_obligatorios):
@@ -123,6 +124,8 @@ def crear_taller(rol_usuario):
                     st.write("❌ Tomo*")
                 if not folio:
                     st.write("❌ Folio*")
+                if not estado_taller:
+                    st.write("❌ Estado del Taller*")
                 return
             
             if all(campos_obligatorios):
@@ -205,7 +208,7 @@ def crear_taller(rol_usuario):
                             20,  # duración por defecto
                             fecha_inicio,
                             fecha_fin,
-                            'activo',
+                            estado_taller.lower(),
                             'regular',
                             profesor_cedula,
                             cohorte,

@@ -403,13 +403,13 @@ try:
     from gestion_estudiantil import gestion_estudiantil_main
     from gestion_profesores import gestion_profesores_main
     from formacion_complementaria import modulo_formacion_complementaria
-    from inscripciones import inscripciones_main
+    from inscripciones_unificadas import inscripciones_unificadas_main
+    from gestion_inscripciones_facilitador import gestion_inscripciones_facilitador_main
     from gestor_certificaciones import gestor_certificaciones_unificado
     from editor_certificados import editor_certificados_main
     from reportes import reportes
     from gestion_permisos import gestion_permisos
     from gestion_carreras import gestion_carreras
-    from solicitud_formacion import solicitud_formacion_main
     from gestion_solicitudes import gestion_solicitudes_main
     from formacion_extemporanea import formacion_extemporanea_main
     from configuracion import configuracion_main
@@ -789,25 +789,21 @@ def main():
             if st.button("Inscripciones", key="btn_inscripciones", use_container_width=True):
                 limpiar_estado_modulo_anterior()
                 limpiar_sesion_db()
-                st.session_state.modulo_actual = "Inscripciones"
+                st.session_state.modulo_actual = "Inscripciones Unificadas"
                 st.rerun()
+            
+            # Módulo para Facilitadores/Profesores
+            if st.session_state.get('user_role') in ['Profesor', 'Administrador']:
+                if st.button("Gestión Inscripciones", key="btn_gestion_inscripciones", use_container_width=True):
+                    limpiar_estado_modulo_anterior()
+                    limpiar_sesion_db()
+                    st.session_state.modulo_actual = "Gestión Inscripciones Facilitador"
+                    st.rerun()
             
             if st.button("Editor de Certificados", key="btn_editor_certificados", use_container_width=True):
                 limpiar_estado_modulo_anterior()
                 limpiar_sesion_db()
                 st.session_state.modulo_actual = "Editor de Certificados"
-                st.rerun()
-            
-            if st.button("Solicitud Formación", key="btn_solicitud_formacion", use_container_width=True):
-                limpiar_estado_modulo_anterior()
-                limpiar_sesion_db()
-                st.session_state.modulo_actual = "Solicitud Formación Complementaria"
-                st.rerun()
-            
-            if st.button("Gestión Solicitudes", key="btn_gestion_solicitud", use_container_width=True):
-                limpiar_estado_modulo_anterior()
-                limpiar_sesion_db()
-                st.session_state.modulo_actual = "Gestión Solicitud Formación Complementaria"
                 st.rerun()
             
             if st.button("Gestión Carreras", key="btn_gestion_carreras", use_container_width=True):
@@ -926,9 +922,10 @@ def main():
                 elif st.session_state.modulo_actual == "Formación Complementaria":
                     print("DEBUG_MODULO: Llamando a modulo_formacion_complementaria()")
                     modulo_formacion_complementaria()
-                elif st.session_state.modulo_actual == "Inscripciones":
-                    print("DEBUG_MODULO: Llamando a inscripciones_main()")
-                    inscripciones_main()
+                elif st.session_state.modulo_actual == "Inscripciones Unificadas":
+                    inscripciones_unificadas_main()
+                elif st.session_state.modulo_actual == "Gestión Inscripciones Facilitador":
+                    gestion_inscripciones_facilitador_main()
                 elif st.session_state.modulo_actual == "Editor de Certificados":
                     print("DEBUG_MODULO: Llamando a editor_certificados_main()")
                     editor_certificados_main()
@@ -940,8 +937,7 @@ def main():
                     gestion_permisos()
                 elif st.session_state.modulo_actual == "Gestión Carreras":
                     gestion_carreras()
-                elif st.session_state.modulo_actual == "Solicitud Formación Complementaria":
-                    solicitud_formacion_main()
+                # Módulo unificado reemplaza a solicitud_formacion - eliminado completamente
                 elif st.session_state.modulo_actual == "Gestión Solicitud Formación Complementaria":
                     gestion_solicitudes_main()
                 elif st.session_state.modulo_actual == "Configuracion":
@@ -1023,9 +1019,9 @@ def mostrar_menu_principal():
                 "Gestión Estudiantil",
                 "Gestión Profesores", 
                 "Registro Estudiantes",
-                "Registro Profesores",
+                "Registro Profesores", 
                 "Formación Complementaria",
-                "Inscripciones",
+                "Inscripciones Unificadas",
                 "Gestión Formación Complementaria",
                 "Certificados",
                 "Reportes",
@@ -1039,7 +1035,7 @@ def mostrar_menu_principal():
                 "Gestión Estudiantil",
                 "Gestión Profesores",
                 "Formación Complementaria",
-                "Inscripciones",
+                "Inscripciones Unificadas",
                 "Gestión Formación Complementaria",
                 "Certificados",
                 "Reportes"
@@ -1048,7 +1044,7 @@ def mostrar_menu_principal():
             modulos_disponibles = [
                 "Gestión Estudiantil",
                 "Formación Complementaria",
-                "Inscripciones",
+                "Inscripciones Unificadas",
                 "Certificados",
                 "Reportes"
             ]

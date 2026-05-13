@@ -161,14 +161,6 @@ class GestionCarreras:
                     help="Nombre oficial de la carrera"
                 )
             
-            with col2:
-                # Campo para código (opcional)
-                codigo_carrera = st.text_input(
-                    "Código de Carrera",
-                    placeholder="Ej: ADM-001",
-                    help="Código identificador de la carrera (opcional)"
-                )
-            
             descripcion_carrera = st.text_area(
                 "Descripción*",
                 placeholder="Describe brevemente la carrera...",
@@ -186,7 +178,7 @@ class GestionCarreras:
                 cancel_button = st.form_submit_button("❌ Cancelar")
             
             if submit_button:
-                self.agregar_carrera(nombre_carrera, descripcion_carrera, codigo_carrera)
+                self.agregar_carrera(nombre_carrera, descripcion_carrera)
             
             if cancel_button:
                 st.rerun()
@@ -213,13 +205,6 @@ class GestionCarreras:
                         key=f"nombre_editar_{id_carrera}"
                     )
                 
-                with col2:
-                    codigo_editar = st.text_input(
-                        "Código de Carrera",
-                        value=carrera.get('codigo_carrera', ''),
-                        key=f"codigo_editar_{id_carrera}"
-                    )
-                
                 descripcion_editar = st.text_area(
                     "Descripción*",
                     value=carrera['descripcion_carrera'],
@@ -236,7 +221,7 @@ class GestionCarreras:
                     cancel_button = st.form_submit_button("❌ Cancelar")
                 
                 if save_button:
-                    self.editar_carrera(id_carrera, nombre_editar, descripcion_editar, codigo_editar)
+                    self.editar_carrera(id_carrera, nombre_editar, descripcion_editar)
                 
                 if cancel_button:
                     st.rerun()
@@ -244,39 +229,20 @@ class GestionCarreras:
         except Exception as e:
             st.error(f"Error mostrando formulario de edición: {e}")
     
-    def agregar_carrera(self, nombre: str, descripcion: str, codigo: str = None):
+    def agregar_carrera(self, nombre: str, descripcion: str):
         """Agrega una nueva carrera a la base de datos con validación mejorada"""
         try:
             if not nombre or not descripcion:
                 st.error("El nombre y la descripción son obligatorios.")
                 return
             
-            # Validación mejorada - verificar duplicados por nombre y código
-            query_check_nombre = "SELECT id_carrera, nombre_carrera FROM carrera WHERE nombre_carrera = %s"
-            resultado_nombre = execute_query(query_check_nombre, (nombre,), fetch_one=True)
-            
-            if resultado_nombre:
-                st.warning(f"La carrera '{nombre}' ya existe con ID: {resultado_nombre['id_carrera']}")
-                st.info("Puedes editar la carrera existente en lugar de crear una nueva.")
-                return
-            
-            # Verificar duplicado por código si se proporciona
-            if codigo:
-                query_check_codigo = "SELECT id_carrera, nombre_carrera FROM carrera WHERE codigo_carrera = %s"
-                resultado_codigo = execute_query(query_check_codigo, (codigo,), fetch_one=True)
-                
-                if resultado_codigo:
-                    st.warning(f"El código '{codigo}' ya está siendo usado por la carrera: {resultado_codigo['nombre_carrera']}")
-                    st.info("Por favor, usa un código diferente.")
-                    return
-            
             # Insertar nueva carrera
             query_insert = """
-                INSERT INTO carrera (nombre_carrera, descripcion_carrera, codigo_carrera, activo, fecha_creacion) 
-                VALUES (%s, %s, %s, true, CURRENT_TIMESTAMP)
+                INSERT INTO carrera (nombre_carrera, descripcion_carrera, activo, fecha_creacion) 
+                VALUES (%s, %s, true, CURRENT_TIMESTAMP)
             """
             
-            execute_query(query_insert, (nombre, descripcion, codigo))
+            execute_query(query_insert, (nombre, descripcion))
             
             st.success(f"Carrera '{nombre}' agregada correctamente.")
             st.rerun()
@@ -288,7 +254,7 @@ class GestionCarreras:
             else:
                 st.error(f"Error agregando carrera: {e}")
     
-    def editar_carrera(self, id_carrera: int, nombre: str, descripcion: str, codigo: str = None):
+    def editar_carrera(self, id_carrera: int, nombre: str, descripcion: str):
         """Edita una carrera existente"""
         try:
             if not nombre or not descripcion:
@@ -306,11 +272,11 @@ class GestionCarreras:
             # Actualizar carrera
             query_update = """
                 UPDATE carrera 
-                SET nombre_carrera = %s, descripcion_carrera = %s, codigo_carrera = %s 
+                SET nombre_carrera = %s, descripcion_carrera = %s 
                 WHERE id_carrera = %s
             """
             
-            execute_query(query_update, (nombre, descripcion, codigo, id_carrera))
+            execute_query(query_update, (nombre, descripcion, id_carrera))
             
             st.success(f"Carrera '{nombre}' actualizada correctamente.")
             
@@ -408,8 +374,7 @@ class GestionCarreras:
                 df_estadisticas = df_estadisticas.rename(columns={
                     'id_carrera': 'ID',
                     'nombre_carrera': 'Carrera',
-                    'descripcion_carrera': 'Descripción',
-                    'codigo_carrera': 'Código'
+                    'descripcion_carrera': 'Descripción'
                 })
                 
                 st.dataframe(df_estadisticas, use_container_width=True)
@@ -421,8 +386,8 @@ class GestionCarreras:
         """Obtiene todas las carreras de la base de datos"""
         try:
             query = """
-                SELECT id_carrera, nombre_carrera, descripcion_carrera, codigo_carrera, activo
-                FROM carrera 
+                SELECT id_carrera, nombre_carrera, descripcion_carrera, activo
+                FROM carrera
                 ORDER BY nombre_carrera
             """
             resultado = execute_query(query)
@@ -440,7 +405,7 @@ class GestionCarreras:
         """Obtiene una carrera específica por su ID"""
         try:
             query = """
-                SELECT id_carrera, nombre_carrera, descripcion_carrera, codigo_carrera
+                SELECT id_carrera, nombre_carrera, descripcion_carrera
                 FROM carrera 
                 WHERE id_carrera = %s
             """
@@ -489,10 +454,10 @@ def precargar_carreras_iniciales():
         for nombre, descripcion, codigo in carreras_a_insertar:
             queries.append((
                 """
-                    INSERT INTO carrera (nombre_carrera, descripcion_carrera, codigo_carrera) 
-                    VALUES (%s, %s, %s)
+                    INSERT INTO carrera (nombre_carrera, descripcion_carrera) 
+                    VALUES (%s, %s)
                 """,
-                (nombre, descripcion, codigo)
+                (nombre, descripcion)
             ))
         
         # Ejecutar transacción
@@ -537,7 +502,7 @@ def obtener_carreras_activas() -> List[Dict[str, Any]]:
         from database import execute_query
         
         query = """
-            SELECT id_carrera, nombre_carrera, descripcion_carrera, codigo_carrera
+            SELECT id_carrera, nombre_carrera, descripcion_carrera
             FROM carrera 
             WHERE activo = true
             ORDER BY nombre_carrera
