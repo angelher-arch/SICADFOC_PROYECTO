@@ -271,18 +271,37 @@ class AuthSystemUnificado:
             st.session_state.usuario_cedula = user_info.get('cedula_usuario', 'N/A')
             st.session_state.usuario_nombre = user_info.get('nombre_completo', 'N/A')
             
-            # Obtener permisos del usuario
+            # Obtener permisos del usuario usando RBAC
             from database import execute_query
             try:
-                query_permisos = """
-                SELECT modulo, accion 
-                FROM configuracion_permisos 
-                WHERE rol = %s
+                # Cargar todos los permisos RBAC del rol del usuario
+                query_permisos_rbac = """
+                SELECT modulo_nombre, puede_ver, puede_consultar, puede_editar, puede_eliminar
+                FROM permisos_rol
+                WHERE rol = %s AND activo = TRUE
                 """
-                permisos = execute_query(query_permisos, (st.session_state.usuario_rol,))
-                st.session_state.usuario_permisos = permisos if permisos else []
+                permisos_rbac = execute_query(query_permisos_rbac, (st.session_state.usuario_rol,), fetch_all=True)
+
+                # Guardar permisos en session_state para acceso rápido
+                st.session_state.usuario_permisos_rbac = permisos_rbac if permisos_rbac else []
+                st.session_state.permisos_cargados = True
+
+                # Crear diccionario de permisos por módulo para acceso rápido
+                permisos_dict = {}
+                for p in permisos_rbac or []:
+                    modulo = p.get('modulo_nombre', '')
+                    permisos_dict[modulo] = {
+                        'ver': p.get('puede_ver', False),
+                        'consultar': p.get('puede_consultar', False),
+                        'editar': p.get('puede_editar', False),
+                        'eliminar': p.get('puede_eliminar', False)
+                    }
+                st.session_state.permisos_dict = permisos_dict
+
             except Exception as e:
-                st.session_state.usuario_permisos = []
+                st.session_state.usuario_permisos_rbac = []
+                st.session_state.permisos_cargados = False
+                st.warning(f"No se pudieron cargar permisos RBAC: {e}")
             
             st.markdown("---")
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -801,25 +820,147 @@ class AuthSystemUnificado:
         st.write("- Sistema actualizado: Versión 2.0.1")
     
     def mostrar_modulo_usuarios(self):
-        """Mostrar módulo de gestión de usuarios"""
+        """Mostrar módulo completo de gestión de usuarios con eliminación y refresco"""
         st.markdown("### 👥 Gestión de Usuarios")
-        st.info("📋 Módulo de gestión de usuarios del sistema")
-        st.write("Aquí podrá administrar todos los usuarios del SICADFOC 2026.")
-        
-        # Opciones del módulo
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("➕ Nuevo Usuario", use_container_width=True):
-                st.success("Redirigiendo al formulario de registro...")
-        
-        with col2:
-            if st.button("📋 Lista de Usuarios", use_container_width=True):
-                st.info("Mostrando lista de usuarios...")
-        
-        # Tabla de usuarios (placeholder)
-        st.markdown("#### 📋 Usuarios Registrados")
-        st.write("Tabla de usuarios del sistema...")
+        st.info("📋 Módulo de gestión de usuarios del sistema - Administre usuarios con eliminación segura")
+
+        # Función para obtener usuarios en tiempo real
+        @st.cache_data(ttl=30)  # Cache por 30 segundos para evitar sobrecarga
+        def obtener_usuarios_activos():
+            """Obtener lista de usuarios activos con filtro estricto"""
+            try:
+                from sincronizacion_usuarios import sincronizar_lista_usuarios
+                return sincronizar_lista_usuarios()
+            except Exception as e:
+                st.error(f"Error obteniendo usuarios: {e}")
+        # Tabs para diferentes acciones
+        tab1, tab2, tab3 = st.tabs(["📋 Lista de Usuarios", "➕ Nuevo Usuario", "🗑️ Eliminar Usuario"])
+
+        with tab1:
+            st.markdown("#### 📋 Usuarios Registrados")
+
+            if usuarios:
+                # Mostrar estadísticas
+                total_usuarios = len(usuarios)
+                roles_count = {}
+                for u in usuarios:
+                    rol = u.get('rol', 'Sin rol')
+                    roles_count[rol] = roles_count.get(rol, 0) + 1
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Usuarios", total_usuarios)
+                with col2:
+                    st.metric("Administradores", roles_count.get('Administrador', 0))
+                with col3:
+                    st.metric("Otros Roles", total_usuarios - roles_count.get('Administrador', 0))
+
+                # Crear DataFrame para mostrar
+                df_usuarios = pd.DataFrame(usuarios)
+                df_usuarios = df_usuarios.rename(columns={
+                    'cedula_usuario': 'Cédula',
+                    'login_usuario': 'Usuario',
+                    'rol': 'Rol',
+                    'nombre_completo': 'Nombre Completo',
+                    'activo': 'Activo'
+                })
+
+                # Mostrar tabla
+                st.dataframe(df_usuarios, use_container_width=True)
+
+                # Botón para refrescar datos
+                if st.button("🔄 Refrescar Lista", key="refresh_usuarios"):
+                    st.cache_data.clear()  # Limpiar cache
+                    st.rerun()
+
+            else:
+                st.info("No hay usuarios registrados en el sistema.")
+
+        with tab2:
+            st.markdown("#### ➕ Registrar Nuevo Usuario")
+            if st.button("Ir a Registro de Usuario", use_container_width=True):
+                st.info("Redirigiendo al módulo de registro...")
+                # Aquí se podría integrar el registro directamente
+
+        with tab3:
+            st.markdown("#### 🗑️ Eliminar Usuario")
+            st.warning("⚠️ Esta acción es irreversible. Solo los administradores pueden eliminar usuarios.")
+
+            # Verificar permisos
+            user_role = st.session_state.get('user_role', '')
+            if user_role != 'Administrador':
+                st.error("❌ Solo los administradores pueden eliminar usuarios.")
+                return
+
+            # Selector de usuario a eliminar
+            if usuarios:
+                opciones_usuarios = [f"{u['cedula_usuario']} - {u['login_usuario']} ({u['rol']})" for u in usuarios]
+                usuario_seleccionado = st.selectbox(
+                    "Seleccionar usuario a eliminar:",
+                    options=opciones_usuarios,
+                    key="usuario_eliminar_select"
+                )
+
+                if usuario_seleccionado:
+                    cedula_eliminar = usuario_seleccionado.split(' - ')[0]
+
+                    # Mostrar información del usuario a eliminar
+                    usuario_info = next((u for u in usuarios if u['cedula_usuario'] == cedula_eliminar), None)
+                    if usuario_info:
+                        st.info(f"""
+                        **Usuario a eliminar:**
+                        - Cédula: {usuario_info['cedula_usuario']}
+                        - Login: {usuario_info['login_usuario']}
+                        - Rol: {usuario_info['rol']}
+                        - Nombre: {usuario_info['nombre_completo']}
+                        """)
+
+                        # Confirmación
+                        confirmar = st.checkbox("✅ Confirmo que deseo eliminar este usuario permanentemente", key="confirmar_eliminacion")
+
+                        if confirmar:
+                            if st.button("🗑️ Eliminar Usuario", type="primary", key="btn_eliminar_usuario"):
+                                self.eliminar_usuario_seguro(cedula_eliminar)
+                        else:
+                            st.warning("Marque la casilla de confirmación para habilitar la eliminación.")
+            else:
+                st.info("No hay usuarios disponibles para eliminar.")
+
+    def eliminar_usuario_seguro(self, cedula_usuario: str):
+        """Eliminar usuario con refresco forzado de interfaz"""
+        try:
+            from database import eliminar_usuario_transaccional
+
+            # Ejecutar eliminación
+            resultado = eliminar_usuario_transaccional(cedula_usuario)
+
+            if resultado.get('success', False):
+                st.success(f"✅ Usuario {cedula_usuario} eliminado exitosamente.")
+
+                # REFRESCO FORZADO - Usar sincronizador para limpiar caches
+                from sincronizacion_usuarios import refresco_forzado_post_operacion
+                refresco_forzado_post_operacion()
+
+                st.balloons()  # Celebración visual
+
+                # Pequeño delay para que el usuario vea el mensaje
+                import time
+                time.sleep(1)
+
+                # Refrescar la página automáticamente
+                st.rerun()
+
+            else:
+                st.error(f"❌ Error al eliminar usuario: {resultado.get('message', 'Error desconocido')}")
+
+                st.warning("🔄 Intentando reconectar...")
+                try:
+                    from database import DatabaseManager
+                    db = DatabaseManager()
+                    db.get_connection()
+                    st.info("✅ Reconexión exitosa. Intente nuevamente.")
+                except:
+                    st.error("❌ No se pudo reconectar. Verifique su conexión a internet.")
     
     def mostrar_modulo_estudiantes(self):
         """Mostrar módulo de gestión estudiantil"""

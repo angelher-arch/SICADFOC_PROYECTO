@@ -698,8 +698,32 @@ def tiene_permiso(rol: str, modulo: str, accion: str) -> bool:
         pass
     
     try:
+        # PRIMERO: Intentar usar permisos cargados en session_state para evitar consultas repetidas
+        if (hasattr(st, 'session_state') and
+            'permisos_dict' in st.session_state and
+            'permisos_cargados' in st.session_state and
+            st.session_state.get('permisos_cargados', False)):
+
+            permisos_dict = st.session_state.get('permisos_dict', {})
+            modulo_permisos = permisos_dict.get(modulo, {})
+
+            # Mapear acción a columna
+            accion_map = {
+                'ver': 'ver',
+                'consultar': 'consultar',
+                'editar': 'editar',
+                'eliminar': 'eliminar',
+                'acceso': 'ver',  # acceso es equivalente a ver
+                'crear': 'editar',  # crear es tipo de editar
+                'Generar': 'editar'  # Generar es tipo de editar
+            }
+
+            columna_accion = accion_map.get(accion.lower(), 'ver')
+            return modulo_permisos.get(columna_accion, False)
+
+        # SEGUNDO: Si no hay permisos en session_state, consultar BD (fallback)
         from database import execute_query
-        
+
         # NUEVA LÓGICA RBAC (Control de Acceso Basado en Roles)
         # Consulta directa a tabla permisos_rol con validación de booleanos
         accion_map = {
@@ -727,7 +751,7 @@ def tiene_permiso(rol: str, modulo: str, accion: str) -> bool:
             return permiso_data.get(columna_accion, False)
         else:
             return False
-            
+
     except Exception as e:
         print(f"Error verificando permisos: {e}")
         return False
