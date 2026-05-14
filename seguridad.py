@@ -698,30 +698,33 @@ def tiene_permiso(rol: str, modulo: str, accion: str) -> bool:
         pass
     
     try:
-        from db_manager import get_database_manager
-        db_manager = get_database_manager()
-        connection = db_manager.get_connection()
+        from database import execute_query
         
-        if not connection:
-            print("No hay conexión a base de datos para verificar permisos")
-            return False
-        
-        # NUEVA LÓGICA EXACTA (Single Source of Truth)
-        # Consulta directa a tabla permisos con validación de booleanos
-        query = """
-        SELECT COUNT(*) as tiene_permiso
-        FROM configuracion_permisos 
-        WHERE rol = %s AND modulo = %s AND accion = %s AND activo = TRUE
+        # NUEVA LÓGICA RBAC (Control de Acceso Basado en Roles)
+        # Consulta directa a tabla permisos_rol con validación de booleanos
+        accion_map = {
+            'ver': 'puede_ver',
+            'consultar': 'puede_consultar',
+            'editar': 'puede_editar',
+            'eliminar': 'puede_eliminar',
+            'acceso': 'puede_ver',  # acceso es equivalente a ver
+            'crear': 'puede_editar',  # crear es tipo de editar
+            'Generar': 'puede_editar'  # Generar es tipo de editar
+        }
+
+        columna_accion = accion_map.get(accion.lower(), 'puede_ver')
+
+        query = f"""
+        SELECT {columna_accion}
+        FROM permisos_rol
+        WHERE rol = %s AND modulo_nombre = %s AND activo = TRUE
         """
-        
-        resultado = db_manager.execute_query(query, (rol, modulo, accion))
-        
+
+        resultado = execute_query(query, (rol, modulo))
+
         if resultado and (isinstance(resultado, list) and len(resultado) > 0 or isinstance(resultado, dict)):
             permiso_data = resultado[0] if isinstance(resultado, list) else resultado
-            if permiso_data.get('tiene_permiso', 0) > 0:
-                return True
-            else:
-                return False
+            return permiso_data.get(columna_accion, False)
         else:
             return False
             

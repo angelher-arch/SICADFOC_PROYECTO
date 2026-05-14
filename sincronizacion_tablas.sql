@@ -100,6 +100,21 @@ CREATE TABLE IF NOT EXISTS public.configuracion_permisos (
     UNIQUE (rol, modulo, accion)
 );
 
+-- Tabla permisos_rol (RBAC - Control de Acceso Basado en Roles)
+CREATE TABLE IF NOT EXISTS public.permisos_rol (
+    id SERIAL PRIMARY KEY,
+    rol VARCHAR(50) NOT NULL,
+    modulo_nombre VARCHAR(100) NOT NULL,
+    puede_ver BOOLEAN NOT NULL DEFAULT FALSE,
+    puede_consultar BOOLEAN NOT NULL DEFAULT FALSE,
+    puede_editar BOOLEAN NOT NULL DEFAULT FALSE,
+    puede_eliminar BOOLEAN NOT NULL DEFAULT FALSE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (rol, modulo_nombre)
+);
+
 -- Tabla permisos
 CREATE TABLE IF NOT EXISTS public.permisos (
     id SERIAL PRIMARY KEY,
@@ -122,6 +137,7 @@ COMMENT ON TABLE public.taller IS 'Talleres y actividades formativas';
 COMMENT ON TABLE public.formacion_complementaria IS 'Registros de formación complementaria asociados a talleres';
 COMMENT ON TABLE public.configuracion_permisos IS 'Configuración de permisos por rol';
 COMMENT ON TABLE public.permisos IS 'Permisos activos del sistema';
+COMMENT ON TABLE public.permisos_rol IS 'Control de Acceso Basado en Roles (RBAC) - Permisos granulares por módulo y rol';
 
 -- Índices para optimización
 CREATE INDEX IF NOT EXISTS idx_persona_cedula ON public.persona(cedula);

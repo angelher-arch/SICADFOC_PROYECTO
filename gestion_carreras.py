@@ -92,7 +92,6 @@ class GestionCarreras:
             columnas_renombradas = {
                 'id_carrera': 'ID',
                 'nombre_carrera': 'Nombre de Carrera',
-                'descripcion_carrera': 'Descripción',
                 'estudiantes_count': 'Estudiantes Inscritos'
             }
             df_carreras = df_carreras.rename(columns=columnas_renombradas)
@@ -152,17 +151,14 @@ class GestionCarreras:
         with st.form("form_agregar_carrera"):
             st.markdown("#### 📝 Información de la Carrera")
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                nombre_carrera = st.text_input(
-                    "Nombre de Carrera*",
-                    placeholder="Ej: Administración",
-                    help="Nombre oficial de la carrera"
-                )
+            nombre_carrera = st.text_input(
+                "Nombre de Carrera*",
+                placeholder="Ej: Administración",
+                help="Nombre oficial de la carrera"
+            )
             
             descripcion_carrera = st.text_area(
-                "Descripción*",
+                "Descripción",
                 placeholder="Describe brevemente la carrera...",
                 height=100,
                 help="Descripción detallada de la carrera"
@@ -198,17 +194,18 @@ class GestionCarreras:
             with st.form(f"form_editar_carrera_{id_carrera}"):
                 col1, col2 = st.columns(2)
                 
-                with col1:
-                    nombre_editar = st.text_input(
-                        "Nombre de Carrera*",
-                        value=carrera['nombre_carrera'],
-                        key=f"nombre_editar_{id_carrera}"
-                    )
+                nombre_editar = st.text_input(
+                    "Nombre de Carrera*",
+                    value=carrera['nombre_carrera'],
+                    key=f"nombre_editar_{id_carrera}"
+                )
                 
                 descripcion_editar = st.text_area(
-                    "Descripción*",
-                    value=carrera['descripcion_carrera'],
+                    "Descripción",
+                    value=carrera.get('descripcion_carrera', ''),
+                    placeholder="Describe brevemente la carrera...",
                     height=100,
+                    help="Descripción detallada de la carrera",
                     key=f"descripcion_editar_{id_carrera}"
                 )
                 
@@ -232,14 +229,14 @@ class GestionCarreras:
     def agregar_carrera(self, nombre: str, descripcion: str):
         """Agrega una nueva carrera a la base de datos con validación mejorada"""
         try:
-            if not nombre or not descripcion:
-                st.error("El nombre y la descripción son obligatorios.")
+            if not nombre:
+                st.error("El nombre es obligatorio.")
                 return
             
             # Insertar nueva carrera
             query_insert = """
-                INSERT INTO carrera (nombre_carrera, descripcion_carrera, activo, fecha_creacion) 
-                VALUES (%s, %s, true, CURRENT_TIMESTAMP)
+                INSERT INTO carrera (nombre_carrera, descripcion_carrera, activo) 
+                VALUES (%s, %s, true)
             """
             
             execute_query(query_insert, (nombre, descripcion))
@@ -257,8 +254,8 @@ class GestionCarreras:
     def editar_carrera(self, id_carrera: int, nombre: str, descripcion: str):
         """Edita una carrera existente"""
         try:
-            if not nombre or not descripcion:
-                st.error("❌ El nombre y la descripción son obligatorios.")
+            if not nombre:
+                st.error("❌ El nombre es obligatorio.")
                 return
             
             # Verificar si existe otra carrera con el mismo nombre
@@ -454,8 +451,8 @@ def precargar_carreras_iniciales():
         for nombre, descripcion, codigo in carreras_a_insertar:
             queries.append((
                 """
-                    INSERT INTO carrera (nombre_carrera, descripcion_carrera) 
-                    VALUES (%s, %s)
+                    INSERT INTO carrera (nombre_carrera, descripcion_carrera, activo) 
+                    VALUES (%s, %s, true)
                 """,
                 (nombre, descripcion)
             ))

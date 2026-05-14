@@ -51,72 +51,101 @@ class GestionPermisos:
             st.error(f"Error en módulo de permisos: {e}")
     
     def configurar_permisos(self):
-        """Interfaz para configurar permisos con checkboxes"""
-        st.subheader("⚙️ Configuración de Permisos por Rol")
-        
-        # Obtener roles y módulos del sistema
-        roles = self.obtener_roles()
-        modulos = self.obtener_modulos()
-        acciones = ['acceso', 'crear', 'editar', 'eliminar', 'aprobar']
-        
-        if not roles or not modulos:
-            st.warning("No se pudieron cargar los roles o módulos del sistema.")
-            return
-        
-        # Selector de rol
-        rol_seleccionado = st.selectbox(
-            "👤 Seleccionar Rol",
-            options=roles,
-            key="rol_permisos_selector"
-        )
-        
-        if rol_seleccionado:
-            st.markdown(f"### 📋 Configurando permisos para: **{rol_seleccionado}**")
-            
+        """Interfaz RBAC para configurar permisos con matriz de checkboxes"""
+        st.subheader("🔐 Control de Acceso Basado en Roles (RBAC)")
+
+        # Definir módulos del sistema
+        modulos_sistema = [
+            "Gestión Estudiantil",
+            "Gestión Profesores",
+            "Registro Estudiantes",
+            "Registro Profesores",
+            "Formación Complementaria",
+            "Inscripciones Unificadas",
+            "Gestión Formación Complementaria",
+            "Certificados",
+            "Reportes",
+            "Gestión Usuarios",
+            "Registrar Usuario",
+            "Gestión de Permisos",
+            "Gestión Carreras"
+        ]
+
+        # Definir acciones
+        acciones = ['puede_ver', 'puede_consultar', 'puede_editar', 'puede_eliminar']
+        acciones_display = ['Ver', 'Consultar', 'Editar', 'Eliminar']
+
+        # Obtener roles del sistema (excluyendo Administrador que siempre tiene acceso total)
+        roles = ['Profesor', 'Estudiante']
+
+        st.markdown("### 👥 Configuración de Permisos por Rol")
+        st.info("💡 Como Administrador, tienes acceso total automático. Configura permisos para otros roles:")
+
+        # Procesar cada rol
+        for rol in roles:
+            st.markdown(f"#### 🎭 Rol: **{rol}**")
+
             # Obtener permisos actuales del rol
-            permisos_actuales = self.obtener_permisos_rol(rol_seleccionado)
-            
-            # Crear matriz de permisos
-            st.markdown("#### 🎛️ Matriz de Permisos")
-            
-            permisos_a_actualizar = []
-            
-            for modulo in modulos:
-                st.markdown(f"**📁 {modulo}**")
-                
-                cols = st.columns(len(acciones))
-                for i, accion in enumerate(acciones):
-                    with cols[i]:
-                        # Verificar si el permiso ya existe
-                        permiso_key = f"permiso_{rol_seleccionado}_{modulo}_{accion}"
-                        permiso_existente = any(
-                            p['rol'] == rol_seleccionado and 
-                            p['modulo'] == modulo and 
-                            p['accion'] == accion 
-                            for p in permisos_actuales
+            permisos_actuales = self.obtener_permisos_rbac_rol(rol)
+
+            # Crear diccionario de permisos actuales para fácil acceso
+            permisos_dict = {}
+            for p in permisos_actuales:
+                key = p['modulo_nombre']
+                permisos_dict[key] = {
+                    'puede_ver': p.get('puede_ver', False),
+                    'puede_consultar': p.get('puede_consultar', False),
+                    'puede_editar': p.get('puede_editar', False),
+                    'puede_eliminar': p.get('puede_eliminar', False)
+                }
+
+            # Crear tabla/matriz de permisos
+            permisos_actualizar = {}
+
+            # Header de la tabla
+            col_modulo, *cols_acciones = st.columns([3] + [1] * len(acciones))
+            with col_modulo:
+                st.markdown("**📁 Módulo**")
+            for i, accion_display in enumerate(acciones_display):
+                with cols_acciones[i]:
+                    st.markdown(f"**{accion_display}**")
+
+            st.markdown("---")
+
+            # Filas para cada módulo
+            for modulo in modulos_sistema:
+                col_modulo, *cols_acciones = st.columns([3] + [1] * len(acciones))
+
+                with col_modulo:
+                    st.markdown(f"**{modulo}**")
+
+                modulo_permisos = permisos_dict.get(modulo, {
+                    'puede_ver': False,
+                    'puede_consultar': False,
+                    'puede_editar': False,
+                    'puede_eliminar': False
+                })
+
+                permisos_actualizar[modulo] = {}
+
+                for i, (accion, accion_display) in enumerate(zip(acciones, acciones_display)):
+                    with cols_acciones[i]:
+                        valor_actual = modulo_permisos.get(accion, False)
+                        nuevo_valor = st.checkbox(
+                            "",
+                            value=valor_actual,
+                            key=f"{rol}_{modulo}_{accion}",
+                            label_visibility="collapsed"
                         )
-                        
-                        # Checkbox para el permiso
-                        permiso_concedido = st.checkbox(
-                            accion,
-                            value=permiso_existente,
-                            key=permiso_key,
-                            help=f"Permitir {accion.lower()} en {modulo}"
-                        )
-                        
-                        if permiso_concedido:
-                            permisos_a_actualizar.append({
-                                'rol': rol_seleccionado,
-                                'modulo': modulo,
-                                'accion': accion,
-                                'acceso_limitado_propio': rol_seleccionado != 'Administrador'
-                            })
-                
-                st.divider()
-            
-            # Botón para guardar cambios
-            if st.button("💾 Guardar Cambios de Permisos", type="primary"):
-                self.guardar_permisos(rol_seleccionado, permisos_a_actualizar)
+                        permisos_actualizar[modulo][accion] = nuevo_valor
+
+            # Botón para guardar permisos del rol
+            if st.button(f"💾 Guardar Permisos para {rol}", type="primary", key=f"guardar_{rol}"):
+                self.guardar_permisos_rbac(rol, permisos_actualizar)
+                st.success(f"✅ Permisos actualizados para el rol {rol}")
+                st.rerun()
+
+            st.markdown("---")
     
     def gestionar_roles(self):
         """Gestión básica de roles"""
@@ -358,6 +387,67 @@ class GestionPermisos:
             
         except Exception as e:
             st.error(f"Error generando reporte de permisos: {e}")
+
+    def obtener_permisos_rbac_rol(self, rol: str) -> List[Dict]:
+        """Obtener permisos RBAC actuales de un rol específico"""
+        try:
+            query = """
+            SELECT rol, modulo_nombre, puede_ver, puede_consultar, puede_editar, puede_eliminar
+            FROM permisos_rol
+            WHERE rol = %s AND activo = TRUE
+            """
+            resultado = execute_query(query, (rol,))
+
+            if resultado and (isinstance(resultado, list) and len(resultado) > 0 or isinstance(resultado, dict)):
+                return resultado if isinstance(resultado, list) else [resultado]
+
+            return []
+
+        except Exception as e:
+            st.error(f"Error obteniendo permisos RBAC del rol {rol}: {e}")
+            return []
+
+    def guardar_permisos_rbac(self, rol: str, permisos_modulos: Dict[str, Dict[str, bool]]):
+        """Guardar configuración RBAC de permisos para un rol"""
+        try:
+            # Iniciar transacción
+            queries = []
+
+            # Para cada módulo, actualizar o insertar permisos
+            for modulo, acciones in permisos_modulos.items():
+                queries.append((
+                    """
+                    INSERT INTO permisos_rol
+                    (rol, modulo_nombre, puede_ver, puede_consultar, puede_editar, puede_eliminar, activo, fecha_actualizacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
+                    ON CONFLICT (rol, modulo_nombre)
+                    DO UPDATE SET
+                        puede_ver = EXCLUDED.puede_ver,
+                        puede_consultar = EXCLUDED.puede_consultar,
+                        puede_editar = EXCLUDED.puede_editar,
+                        puede_eliminar = EXCLUDED.puede_eliminar,
+                        fecha_actualizacion = CURRENT_TIMESTAMP
+                    """,
+                    (
+                        rol,
+                        modulo,
+                        acciones.get('puede_ver', False),
+                        acciones.get('puede_consultar', False),
+                        acciones.get('puede_editar', False),
+                        acciones.get('puede_eliminar', False)
+                    )
+                ))
+
+            # Ejecutar transacción
+            resultado = ejecutar_transaccion(queries)
+
+            if resultado['success']:
+                st.success(f"✅ Permisos RBAC del rol '{rol}' actualizados correctamente.")
+            else:
+                st.error(f"❌ Error actualizando permisos RBAC: {resultado['message']}")
+
+        except Exception as e:
+            st.error(f"❌ Error en la operación RBAC: {e}")
 
 def mostrar_gestion_permisos():
     """Función principal para mostrar el módulo de gestión de permisos"""
