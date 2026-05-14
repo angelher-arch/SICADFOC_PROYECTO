@@ -961,6 +961,18 @@ class AuthSystemUnificado:
                     st.info("✅ Reconexión exitosa. Intente nuevamente.")
                 except:
                     st.error("❌ No se pudo reconectar. Verifique su conexión a internet.")
+        except Exception as e:
+            st.error(f"❌ Error en eliminación: {e}")
+            # Intentar reconexión si es error de conexión
+            if "connection" in str(e).lower():
+                st.warning("🔄 Intentando reconectar...")
+                try:
+                    from database import DatabaseManager
+                    db = DatabaseManager()
+                    db.get_connection()
+                    st.info("✅ Reconexión exitosa. Intente nuevamente.")
+                except:
+                    st.error("❌ No se pudo reconectar. Verifique su conexión a internet.")
     
     def mostrar_modulo_estudiantes(self):
         """Mostrar módulo de gestión estudiantil"""
